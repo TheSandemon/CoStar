@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import Link from "next/link";
 import { User, Building2, Briefcase, Settings, Star, CheckCircle2, Github, Linkedin, LogOut } from "lucide-react";
 
 export default function DashboardPage() {
@@ -38,9 +39,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center gap-4">
             <nav className="hidden md:flex items-center gap-6">
-              <a href="#" className="text-slate-300 hover:text-white transition-colors">Jobs</a>
-              <a href="#" className="text-slate-300 hover:text-white transition-colors">Companies</a>
-              <a href="#" className="text-slate-300 hover:text-white transition-colors">Messages</a>
+              <Link href="/jobs" className="text-slate-300 hover:text-white transition-colors">Jobs</Link>
+              <Link href="#" className="text-slate-300 hover:text-white transition-colors">Companies</Link>
+              <Link href="#" className="text-slate-300 hover:text-white transition-colors">Messages</Link>
             </nav>
 
             {/* User Menu */}
@@ -147,18 +148,30 @@ export default function DashboardPage() {
 
             <div className="space-y-3">
               {[
-                { icon: Github, label: "Connect GitHub", color: "amber" },
-                { icon: Linkedin, label: "Import LinkedIn", color: "blue" },
-                { icon: Briefcase, label: "Add Work Experience", color: "green" },
-                { icon: Settings, label: "Account Settings", color: "slate" },
+                { icon: Briefcase, label: "Browse Jobs", color: "amber", href: "/jobs" },
+                { icon: Building2, label: "Post a Job", color: "green", href: "/dashboard/jobs" },
+                { icon: Github, label: "Connect GitHub", color: "slate", href: "#" },
+                { icon: Linkedin, label: "Import LinkedIn", color: "blue", href: "#" },
+                { icon: Settings, label: "Account Settings", color: "slate", href: "#" },
               ].map((action) => (
-                <button
-                  key={action.label}
-                  className="w-full p-3 bg-slate-900 border border-white/10 rounded-lg text-white hover:border-white/30 transition-colors flex items-center gap-3"
-                >
-                  <action.icon className={`text-${action.color}-400`} size={18} />
-                  {action.label}
-                </button>
+                action.href.startsWith('/') ? (
+                  <Link
+                    key={action.label}
+                    href={action.href}
+                    className="w-full p-3 bg-slate-900 border border-white/10 rounded-lg text-white hover:border-white/30 transition-colors flex items-center gap-3"
+                  >
+                    <action.icon className={`text-${action.color}-400`} size={18} />
+                    {action.label}
+                  </Link>
+                ) : (
+                  <button
+                    key={action.label}
+                    className="w-full p-3 bg-slate-900 border border-white/10 rounded-lg text-white hover:border-white/30 transition-colors flex items-center gap-3"
+                  >
+                    <action.icon className={`text-${action.color}-400`} size={18} />
+                    {action.label}
+                  </button>
+                )
               ))}
             </div>
           </div>
@@ -166,7 +179,12 @@ export default function DashboardPage() {
 
         {/* Recent Job Matches */}
         <div className="mt-8 bg-slate-800/50 border border-white/10 rounded-xl p-6">
-          <h2 className="text-xl font-bold text-white mb-6">Top Job Matches</h2>
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-white">Top Job Matches</h2>
+            <Link href="/jobs" className="text-amber-400 hover:text-amber-300 text-sm">
+              View All →
+            </Link>
+          </div>
           <p className="text-slate-400 text-center py-8">
             Complete your profile to see AI-matched job opportunities
           </p>

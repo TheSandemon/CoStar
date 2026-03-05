@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": ".firebase/costar-d57bc/hosting",
+    "public": "out",
     "ignore": [
       "firebase.json",
       "**/.*"
