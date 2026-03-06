@@ -18,7 +18,35 @@ export default function JobsPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
   const [categories, setCategories] = useState<string[]>([]);
   const [locations, setLocations] = useState<{ city: string; country: string }[]>([]);
-  const [initialLoadDone, setInitialLoadDone] = useState(false);
+
+  // Load jobs from Firestore
+  const loadJobs = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await getJobs(
+        filters,
+        sortBy,
+        20,
+        lastDoc
+      );
+
+      setJobs(result.jobs);
+      setHasMore(result.hasMore);
+      setLastDoc(result.lastDocument);
+    } catch (err) {
+      setError('Failed to load jobs. Please try again.');
+      console.error('Error loading jobs:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [filters, sortBy, lastDoc]);
+
+  // Initial load on mount
+  useEffect(() => {
+    loadJobs();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load categories and locations
   useEffect(() => {
@@ -35,65 +63,24 @@ export default function JobsPage() {
     loadMeta();
   }, []);
 
-  // Load jobs
-  const loadJobs = useCallback(async (reset = false) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await getJobs(
-        filters,
-        sortBy,
-        20,
-        reset ? undefined : lastDoc
-      );
-
-      if (reset) {
-        setJobs(result.jobs);
-      } else {
-        setJobs(prev => [...prev, ...result.jobs]);
-      }
-
-      setHasMore(result.hasMore);
-      setLastDoc(result.lastDocument);
-    } catch (err) {
-      setError('Failed to load jobs. Please try again.');
-      console.error('Error loading jobs:', err);
-    } finally {
-      setIsLoading(false);
-      setInitialLoadDone(true);
-    }
-  }, [filters, sortBy, lastDoc]);
-
-  // Initial load
+  // Reload when filters or sort changes
   useEffect(() => {
-    if (initialLoadDone) {
-      loadJobs(true);
-    }
-  }, [filters, sortBy]);
-
-  // Reset and reload when filters change
-  useEffect(() => {
-    if (initialLoadDone) {
-      setLastDoc(null);
-      loadJobs(true);
-    }
-  }, [filters, sortBy]);
+    setLastDoc(null);
+    loadJobs();
+  }, [filters, sortBy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLoadMore = () => {
     if (!isLoading && hasMore) {
-      loadJobs(false);
+      loadJobs();
     }
   };
 
   const handleFiltersChange = (newFilters: JobFilters) => {
     setFilters(newFilters);
-    setLastDoc(null);
   };
 
   const handleSortChange = (newSort: SortOption) => {
     setSortBy(newSort);
-    setLastDoc(null);
   };
 
   return (
