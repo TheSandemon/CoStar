@@ -110,9 +110,10 @@ function JobsContent() {
   useEffect(() => {
     if (user) {
       setLastDoc(null);
+      // Reinitialize cache by passing null lastDoc
       loadJobs();
     }
-  }, [filters, sortBy, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters, sortBy, user]);
 
   const handleFiltersChange = (newFilters: JobFilters) => {
     setFilters(newFilters);
