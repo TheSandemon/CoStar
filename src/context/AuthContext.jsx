@@ -24,6 +24,10 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     const signInWithGoogle = async () => {
+        if (!auth) {
+            alert("Firebase Auth not initialized. Please check environment variables.");
+            return;
+        }
         const provider = new GoogleAuthProvider();
         try {
             await signInWithPopup(auth, provider);
