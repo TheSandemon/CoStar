@@ -303,72 +303,91 @@ export async function getJobs(
 ): Promise<{ jobs: JobData[]; lastDocument: any; hasMore: boolean }> {
   if (!db) throw new Error('Firestore not initialized');
 
-  const constraints: QueryConstraint[] = [];
+  // Simple query - get all active jobs first, then filter client-side
+  // This avoids needing composite indexes in Firestore
+  const q = query(
+    collection(db, 'jobs'),
+    where('status', '==', 'active'),
+    limit(pageSize * 3) // Get more to filter
+  );
 
-  // Always filter by active status for public listing
-  constraints.push(where('status', '==', 'active'));
-  constraints.push(where('visibility', 'in', ['public', 'unlisted']));
+  let snapshot = await getDocs(q);
 
-  // Apply filters
-  if (filters.employmentType && filters.employmentType.length > 0) {
-    constraints.push(where('employment.type', 'in', filters.employmentType));
-  }
-
-  if (filters.experienceLevel && filters.experienceLevel.length > 0) {
-    constraints.push(where('employment.experienceLevel', 'in', filters.experienceLevel));
-  }
-
-  if (filters.category) {
-    constraints.push(where('category', '==', filters.category));
-  }
-
-  if (filters.employerId) {
-    constraints.push(where('employerId', '==', filters.employerId));
-  }
-
-  if (filters.companyId) {
-    constraints.push(where('companyId', '==', filters.companyId));
-  }
-
-  // Apply sorting
-  switch (sortBy) {
-    case 'recent':
-      constraints.push(orderBy('createdAt', 'desc'));
-      break;
-    case 'salary_high':
-      constraints.push(orderBy('salary.max', 'desc'));
-      break;
-    case 'salary_low':
-      constraints.push(orderBy('salary.min', 'asc'));
-      break;
-    case 'company_az':
-      constraints.push(orderBy('companyName', 'asc'));
-      break;
-    case 'most_viewed':
-      constraints.push(orderBy('metrics.views', 'desc'));
-      break;
-  }
-
-  // Pagination
-  constraints.push(limit(pageSize));
-  if (lastDoc) {
-    constraints.push(startAfter(lastDoc));
-  }
-
-  const q = query(collection(db, 'jobs'), ...constraints);
-  const snapshot = await getDocs(q);
-
-  const jobs: JobData[] = snapshot.docs.map(doc => ({
+  let jobs: JobData[] = snapshot.docs.map(doc => ({
     jobId: doc.id,
     ...doc.data(),
   })) as JobData[];
 
-  // Client-side filtering for text search and salary range
-  let filteredJobs = jobs;
+  // Client-side filtering for visibility
+  jobs = jobs.filter(job =>
+    job.visibility === 'public' || job.visibility === 'unlisted'
+  );
 
+  // Client-side filtering for employment type
+  const employmentTypes = filters.employmentType || [];
+  if (employmentTypes.length > 0) {
+    jobs = jobs.filter(job =>
+      job.employment?.type && employmentTypes.includes(job.employment.type)
+    );
+  }
+
+  // Client-side filtering for experience level
+  const experienceLevels = filters.experienceLevel || [];
+  if (experienceLevels.length > 0) {
+    jobs = jobs.filter(job =>
+      job.employment?.experienceLevel && experienceLevels.includes(job.employment.experienceLevel)
+    );
+  }
+
+  // Client-side filtering for category
+  if (filters.category) {
+    jobs = jobs.filter(job => job.category === filters.category);
+  }
+
+  // Client-side filtering for remote policy
+  if (filters.remotePolicy && filters.remotePolicy.length > 0) {
+    jobs = jobs.filter(job =>
+      job.location?.remotePolicy && (filters.remotePolicy ?? []).includes(job.location.remotePolicy)
+    );
+  }
+
+  // Salary filtering
+  if (filters.salaryMin) {
+    jobs = jobs.filter(job =>
+      job.salary?.max && job.salary.max >= filters.salaryMin!
+    );
+  }
+
+  if (filters.salaryMax) {
+    jobs = jobs.filter(job =>
+      job.salary?.min && job.salary.min <= filters.salaryMax!
+    );
+  }
+
+  // Location filtering
+  if (filters.location?.city) {
+    jobs = jobs.filter(job =>
+      job.location?.city?.toLowerCase().includes(filters.location!.city!.toLowerCase())
+    );
+  }
+
+  if (filters.location?.country) {
+    jobs = jobs.filter(job =>
+      job.location?.country?.toLowerCase().includes(filters.location!.country!.toLowerCase())
+    );
+  }
+
+  // Tags filtering
+  if (filters.tags && filters.tags.length > 0) {
+    jobs = jobs.filter(job =>
+      job.tags?.some(tag => filters.tags!.includes(tag))
+    );
+  }
+
+  // Text search
   if (filters.search) {
     const searchLower = filters.search.toLowerCase();
-    filteredJobs = filteredJobs.filter(job =>
+    jobs = jobs.filter(job =>
       job.title?.toLowerCase().includes(searchLower) ||
       job.companyName?.toLowerCase().includes(searchLower) ||
       job.description?.toLowerCase().includes(searchLower) ||
@@ -379,76 +398,38 @@ export async function getJobs(
     );
   }
 
-  if (filters.remotePolicy && filters.remotePolicy.length > 0) {
-    filteredJobs = filteredJobs.filter(job =>
-      job.location?.remotePolicy && (filters.remotePolicy ?? []).includes(job.location.remotePolicy)
-    );
+  // Sort
+  switch (sortBy) {
+    case 'recent':
+      jobs.sort((a, b) => {
+        if (!a.createdAt || !b.createdAt) return 0;
+        const dateA = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+        const dateB = b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+        return dateB.getTime() - dateA.getTime();
+      });
+      break;
+    case 'salary_high':
+      jobs.sort((a, b) => (b.salary?.max || 0) - (a.salary?.max || 0));
+      break;
+    case 'salary_low':
+      jobs.sort((a, b) => (a.salary?.min || 0) - (b.salary?.min || 0));
+      break;
+    case 'company_az':
+      jobs.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
+      break;
+    case 'most_viewed':
+      jobs.sort((a, b) => (b.metrics?.views || 0) - (a.metrics?.views || 0));
+      break;
   }
 
-  if (filters.salaryMin) {
-    filteredJobs = filteredJobs.filter(job =>
-      job.salary?.max && job.salary.max >= filters.salaryMin!
-    );
-  }
-
-  if (filters.salaryMax) {
-    filteredJobs = filteredJobs.filter(job =>
-      job.salary?.min && job.salary.min <= filters.salaryMax!
-    );
-  }
-
-  if (filters.location?.city) {
-    filteredJobs = filteredJobs.filter(job =>
-      job.location?.city?.toLowerCase().includes(filters.location!.city!.toLowerCase())
-    );
-  }
-
-  if (filters.location?.country) {
-    filteredJobs = filteredJobs.filter(job =>
-      job.location?.country?.toLowerCase().includes(filters.location!.country!.toLowerCase())
-    );
-  }
-
-  if (filters.tags && filters.tags.length > 0) {
-    filteredJobs = filteredJobs.filter(job =>
-      job.tags?.some(tag => filters.tags!.includes(tag))
-    );
-  }
-
-  // Date filtering
-  if (filters.datePosted && filters.datePosted !== 'any') {
-    const now = Date.now();
-    let cutoff: number;
-
-    switch (filters.datePosted) {
-      case '24h':
-        cutoff = now - 24 * 60 * 60 * 1000;
-        break;
-      case 'week':
-        cutoff = now - 7 * 24 * 60 * 60 * 1000;
-        break;
-      case 'month':
-        cutoff = now - 30 * 24 * 60 * 60 * 1000;
-        break;
-      default:
-        cutoff = 0;
-    }
-
-    if (cutoff > 0) {
-      const cutoffDate = Timestamp.fromMillis(cutoff);
-      filteredJobs = filteredJobs.filter(job =>
-        job.publishedAt && job.publishedAt.toMillis && job.publishedAt.toMillis() >= cutoff
-      );
-    }
-  }
-
-  const lastDocument = snapshot.docs[snapshot.docs.length - 1];
-  const hasMore = snapshot.docs.length === pageSize;
+  // Limit results
+  const totalJobsCount = jobs.length;
+  jobs = jobs.slice(0, pageSize);
 
   return {
-    jobs: filteredJobs,
-    lastDocument,
-    hasMore,
+    jobs,
+    lastDocument: null,
+    hasMore: totalJobsCount > pageSize,
   };
 }
 
