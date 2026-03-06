@@ -181,6 +181,7 @@ export interface JobData {
 
   // Source tracking
   source?: string;
+  url?: string;
 }
 
 // Scraped Jobs Collection Interface
@@ -296,11 +297,13 @@ export function convertScrapedJobToJobData(scraped: ScrapedJobData): JobData {
     tags: scraped.tags || scraped.skills,
     category: scraped.category,
     application: {
-      url: scraped.apply_url || scraped.application_url,
-      method: scraped.apply_url ? 'external' : undefined,
+      url: scraped.apply_url || scraped.application_url || scraped.url,
+      method: scraped.apply_url || scraped.application_url ? 'external' : undefined,
     },
     createdAt: scraped.posted_date || scraped.createdAt || scraped.date_scraped,
     source: scraped.source,
+    // Store original URL for reference
+    url: scraped.url,
   };
 }
 

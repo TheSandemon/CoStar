@@ -158,13 +158,26 @@ export default function JobDetailPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <h1 className="text-2xl font-bold text-white mb-2">{job.title}</h1>
-                  <div className="flex items-center gap-2 text-slate-400">
+                  <div className="flex items-center gap-2 text-slate-400 flex-wrap">
                     <span className="font-medium text-amber-400">{job.companyName}</span>
                     {job.employment?.experienceLevel && (
                       <>
                         <span>•</span>
                         <span className="capitalize">{job.employment.experienceLevel}</span>
                       </>
+                    )}
+                  </div>
+                  {/* Category and Source */}
+                  <div className="flex items-center gap-2 mt-2">
+                    {job.category && (
+                      <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-xs">
+                        {job.category}
+                      </span>
+                    )}
+                    {job.source && (
+                      <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full text-xs">
+                        {job.source}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -330,29 +343,24 @@ export default function JobDetailPage() {
                 </div>
               ) : (
                 <>
-                  <button
-                    onClick={handleApply}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-900 rounded-xl font-bold mb-4"
-                  >
-                    {job.application?.method === 'external' ? (
-                      <>
-                        Apply on Company Site
-                        <ExternalLink className="w-4 h-4" />
-                      </>
-                    ) : job.application?.method === 'email' ? (
-                      <>
-                        Apply via Email
-                        <ExternalLink className="w-4 h-4" />
-                      </>
-                    ) : (
-                      'Apply Now'
-                    )}
-                  </button>
-                  <p className="text-slate-400 text-sm text-center">
-                    {job.application?.resumeRequired && 'Resume required'}
-                    {job.application?.resumeRequired && job.application?.coverLetterRequired && ' • '}
-                    {job.application?.coverLetterRequired && 'Cover letter required'}
-                  </p>
+                  {job.application?.url ? (
+                    <a
+                      href={job.application.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-900 rounded-xl font-bold mb-4"
+                    >
+                      Apply on Company Site
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  ) : (
+                    <button
+                      onClick={handleApply}
+                      className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-900 rounded-xl font-bold mb-4"
+                    >
+                      Apply Now
+                    </button>
+                  )}
                 </>
               )}
 

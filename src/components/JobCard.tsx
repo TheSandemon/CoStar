@@ -200,14 +200,19 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
               </div>
             )}
 
-            {/* Source Badge */}
-            {job.source && (
-              <div className="flex items-center gap-2 mt-3">
+            {/* Source Badge and Category */}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              {job.category && (
+                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-xs">
+                  {job.category}
+                </span>
+              )}
+              {job.source && (
                 <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full text-xs">
                   {job.source}
                 </span>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Footer */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
