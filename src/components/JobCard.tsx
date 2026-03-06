@@ -221,7 +221,8 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
                 <span>{formatDate()}</span>
               </div>
 
-              {job.application?.url && (
+              {/* Apply Button - links to external URL if available, otherwise to detail page */}
+              {job.application?.url ? (
                 <a
                   href={job.application.url}
                   target="_blank"
@@ -232,6 +233,10 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
                   Apply
                   <ExternalLink className="w-3 h-3" />
                 </a>
+              ) : (
+                <span className="text-slate-500 text-sm">
+                  Click to view details
+                </span>
               )}
             </div>
           </div>

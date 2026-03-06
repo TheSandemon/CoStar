@@ -93,9 +93,10 @@ export default function JobDetailPage() {
   };
 
   const handleApply = () => {
-    if (job?.application?.method === 'external' && job.application.url) {
+    // Always try to open the application URL if it exists
+    if (job?.application?.url) {
       window.open(job.application.url, '_blank');
-    } else if (job?.application?.method === 'email' && job.application.email) {
+    } else if (job?.application?.email) {
       window.location.href = `mailto:${job.application.email}`;
     } else {
       setApplied(true);

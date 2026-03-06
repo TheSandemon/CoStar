@@ -217,6 +217,15 @@ export interface ScrapedJobData {
   source?: string;
   url?: string;
   date_scraped?: any;
+  // Additional URL field variations
+  link?: string;
+  applyLink?: string;
+  job_url?: string;
+  jobUrl?: string;
+  // Email fields
+  email?: string;
+  apply_email?: string;
+  contact_email?: string;
 }
 
 export interface JobFilters {
@@ -297,8 +306,9 @@ export function convertScrapedJobToJobData(scraped: ScrapedJobData): JobData {
     tags: scraped.tags || scraped.skills,
     category: scraped.category,
     application: {
-      url: scraped.apply_url || scraped.application_url || scraped.url,
-      method: scraped.apply_url || scraped.application_url ? 'external' : undefined,
+      url: scraped.apply_url || scraped.application_url || scraped.url || scraped.link || scraped.applyLink || scraped.job_url || scraped.jobUrl || '',
+      method: (scraped.apply_url || scraped.application_url || scraped.url || scraped.link) ? 'external' : undefined,
+      email: scraped.email || scraped.apply_email || scraped.contact_email,
     },
     createdAt: scraped.posted_date || scraped.createdAt || scraped.date_scraped,
     source: scraped.source,
@@ -367,9 +377,10 @@ export async function getScrapedJobs(
   if (!db) throw new Error('Firestore not initialized');
 
   // Query scrapedJobs collection - get all documents
+  // Use a larger limit to ensure we get all jobs (max 500 for client-side filtering)
   const q = query(
     collection(db, 'scrapedJobs'),
-    limit(pageSize * 3)
+    limit(500)
   );
 
   let snapshot = await getDocs(q);
