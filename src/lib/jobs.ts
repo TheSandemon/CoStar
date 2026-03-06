@@ -10,7 +10,6 @@ import {
   where,
   orderBy,
   limit,
-  startAfter,
   serverTimestamp,
   Timestamp,
   increment,
@@ -367,6 +366,10 @@ function extractCountry(location?: string): string | undefined {
   return parts[parts.length - 1]?.trim();
 }
 
+// In-memory cache for scraped jobs (to support client-side filtering with pagination)
+let cachedJobs: { data: ScrapedJobData; doc: any }[] = [];
+let isCacheInitialized = false;
+
 // Get jobs from scrapedJobs collection
 export async function getScrapedJobs(
   filters: JobFilters = {},
@@ -376,19 +379,24 @@ export async function getScrapedJobs(
 ): Promise<{ jobs: JobData[]; lastDocument: any; hasMore: boolean }> {
   if (!db) throw new Error('Firestore not initialized');
 
-  // Query scrapedJobs collection - get all documents
-  // Use a larger limit to ensure we get all jobs (max 500 for client-side filtering)
-  const q = query(
-    collection(db, 'scrapedJobs'),
-    limit(500)
+  // Initialize cache on first load (or reset when filters change)
+  if (!isCacheInitialized || !lastDoc) {
+    const q = query(
+      collection(db, 'scrapedJobs'),
+      limit(500)
+    );
+    const snapshot = await getDocs(q);
+    cachedJobs = snapshot.docs.map(doc => ({
+      data: doc.data() as ScrapedJobData,
+      doc: doc,
+    }));
+    isCacheInitialized = true;
+  }
+
+  // Convert cached data to JobData
+  let jobs: JobData[] = cachedJobs.map(item =>
+    convertScrapedJobToJobData({ ...item.data, id: item.doc.id })
   );
-
-  let snapshot = await getDocs(q);
-
-  let jobs: JobData[] = snapshot.docs.map(doc => {
-    const data = doc.data() as ScrapedJobData;
-    return convertScrapedJobToJobData({ ...data, id: doc.id });
-  });
 
   // Client-side filtering for employment type
   const employmentTypes = filters.employmentType || [];
@@ -516,14 +524,28 @@ export async function getScrapedJobs(
       break;
   }
 
-  // Limit results
-  const totalJobsCount = jobs.length;
-  jobs = jobs.slice(0, pageSize);
+  // Calculate pagination
+  // If lastDoc is provided, find its index and start from there
+  let startIndex = 0;
+  if (lastDoc !== undefined && lastDoc !== null) {
+    // Find the starting index from cached jobs
+    const lastDocIndex = cachedJobs.findIndex(item => item.doc.id === lastDoc);
+    if (lastDocIndex !== -1) {
+      startIndex = lastDocIndex + 1;
+    }
+  }
+
+  // Get the slice of jobs for this page
+  const paginatedJobs = jobs.slice(startIndex, startIndex + pageSize);
+  const hasMore = startIndex + pageSize < jobs.length;
+
+  // Get the last document ID for next page
+  const lastDocument = hasMore ? paginatedJobs[paginatedJobs.length - 1]?.jobId : null;
 
   return {
-    jobs,
-    lastDocument: null,
-    hasMore: totalJobsCount > pageSize,
+    jobs: paginatedJobs,
+    lastDocument,
+    hasMore,
   };
 }
 

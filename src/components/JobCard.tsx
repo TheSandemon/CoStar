@@ -234,8 +234,12 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
                   <ExternalLink className="w-3 h-3" />
                 </a>
               ) : (
-                <span className="text-slate-500 text-sm">
-                  Click to view details
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                >
+                  View Details
+                  <ExternalLink className="w-3 h-3" />
                 </span>
               )}
             </div>
