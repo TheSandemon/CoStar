@@ -80,8 +80,11 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
 
   const salary = formatSalary();
 
+  // Generate link - use jobId (not slug since slugs aren't persistent)
+  const jobLink = job.jobId ? `/jobs/${job.jobId}` : '#';
+
   return (
-    <Link href={`/jobs/${job.slug}`}>
+    <Link href={jobLink}>
       <div
         className="group bg-slate-800/50 border border-white/10 rounded-xl p-5 hover:border-amber-500/30 hover:bg-slate-800/80 transition-all duration-300 cursor-pointer"
         onMouseEnter={() => setIsHovered(true)}
@@ -173,6 +176,11 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
               )}
             </div>
 
+            {/* Short Description */}
+            {job.shortDescription && (
+              <p className="text-slate-400 text-sm mt-2 line-clamp-2">{job.shortDescription}</p>
+            )}
+
             {/* Tags */}
             {job.tags && job.tags.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-3">
@@ -192,6 +200,20 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
               </div>
             )}
 
+            {/* Source Badge and Category */}
+            <div className="flex items-center gap-2 mt-3 flex-wrap">
+              {job.category && (
+                <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full text-xs">
+                  {job.category}
+                </span>
+              )}
+              {job.source && (
+                <span className="px-2 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full text-xs">
+                  {job.source}
+                </span>
+              )}
+            </div>
+
             {/* Footer */}
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-white/5">
               <div className="flex items-center gap-1 text-slate-500 text-sm">
@@ -199,14 +221,17 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
                 <span>{formatDate()}</span>
               </div>
 
-              {job.application?.method && (
-                <button
-                  onClick={handleApply}
+              {job.application?.url && (
+                <a
+                  href={job.application.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
                   className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-900 rounded-lg text-sm font-medium transition-colors"
                 >
                   Apply
                   <ExternalLink className="w-3 h-3" />
-                </button>
+                </a>
               )}
             </div>
           </div>

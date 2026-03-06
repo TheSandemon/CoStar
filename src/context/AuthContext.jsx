@@ -24,6 +24,10 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
 
     const signInWithGoogle = async () => {
+        if (!auth) {
+            alert("Firebase Auth not initialized. Please check environment variables.");
+            return;
+        }
         const provider = new GoogleAuthProvider();
         try {
             await signInWithPopup(auth, provider);
@@ -33,9 +37,14 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const logout = () => signOut(auth);
+    const logout = () => auth ? signOut(auth) : Promise.resolve();
 
     useEffect(() => {
+        if (!auth) {
+            setLoading(false);
+            return;
+        }
+
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             if (!currentUser) {
                 setUser(null);
@@ -55,6 +64,12 @@ export const AuthProvider = ({ children }) => {
 
             // Background sync: Fetch/sync user data from Firestore
             try {
+                if (!db) {
+                    console.warn("Firestore not initialized");
+                    setLoading(false);
+                    return;
+                }
+
                 const userRef = doc(db, 'users', currentUser.uid);
                 const userSnap = await getDoc(userRef);
 

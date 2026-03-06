@@ -178,6 +178,45 @@ export interface JobData {
   publishedAt?: any;
   expiresAt?: any;
   closedAt?: any;
+
+  // Source tracking
+  source?: string;
+  url?: string;
+}
+
+// Scraped Jobs Collection Interface
+// Fields from the /scrapedJobs Firestore collection
+export interface ScrapedJobData {
+  id?: string;
+  jobId?: string;
+  title?: string;
+  company?: string;
+  companyName?: string;
+  location?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  description?: string;
+  shortDescription?: string;
+  salary_min?: number;
+  salary_max?: number;
+  salary_currency?: string;
+  salary_period?: string;
+  job_type?: string;
+  employmentType?: string;
+  remote?: string;
+  remote_policy?: string;
+  experience_level?: string;
+  skills?: string[];
+  tags?: string[];
+  category?: string;
+  posted_date?: any;
+  createdAt?: any;
+  apply_url?: string;
+  application_url?: string;
+  source?: string;
+  url?: string;
+  date_scraped?: any;
 }
 
 export interface JobFilters {
@@ -208,6 +247,319 @@ export function generateSlug(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
     + '-' + Date.now().toString(36);
+}
+
+// Convert scraped job to JobData for display
+export function convertScrapedJobToJobData(scraped: ScrapedJobData): JobData {
+  // Determine remote policy from various field formats
+  let remotePolicy: 'remote' | 'hybrid' | 'onsite' | 'flexible' | undefined;
+  if (scraped.remote === 'remote' || scraped.remote_policy === 'remote') {
+    remotePolicy = 'remote';
+  } else if (scraped.remote === 'hybrid' || scraped.remote_policy === 'hybrid') {
+    remotePolicy = 'hybrid';
+  } else if (scraped.remote === 'onsite' || scraped.remote_policy === 'onsite') {
+    remotePolicy = 'onsite';
+  } else if (scraped.remote === 'flexible' || scraped.remote_policy === 'flexible') {
+    remotePolicy = 'flexible';
+  }
+
+  // Map job type
+  const employmentType = mapJobType(scraped.job_type || scraped.employmentType);
+
+  // Map experience level
+  const experienceLevel = mapExperienceLevel(scraped.experience_level);
+
+  return {
+    jobId: scraped.id || scraped.jobId,
+    title: scraped.title,
+    companyName: scraped.company || scraped.companyName,
+    slug: scraped.id ? generateSlug(scraped.title || '') : undefined,
+    description: scraped.description,
+    shortDescription: scraped.shortDescription,
+    location: {
+      city: scraped.city || extractCity(scraped.location),
+      state: scraped.state,
+      country: scraped.country || extractCountry(scraped.location),
+      remotePolicy,
+      remoteNotes: scraped.remote,
+    },
+    salary: {
+      min: scraped.salary_min,
+      max: scraped.salary_max,
+      currency: scraped.salary_currency,
+      period: mapSalaryPeriod(scraped.salary_period),
+      visible: !!(scraped.salary_min || scraped.salary_max),
+    },
+    employment: {
+      type: employmentType,
+      experienceLevel,
+    },
+    tags: scraped.tags || scraped.skills,
+    category: scraped.category,
+    application: {
+      url: scraped.apply_url || scraped.application_url || scraped.url,
+      method: scraped.apply_url || scraped.application_url ? 'external' : undefined,
+    },
+    createdAt: scraped.posted_date || scraped.createdAt || scraped.date_scraped,
+    source: scraped.source,
+    // Store original URL for reference
+    url: scraped.url,
+  };
+}
+
+// Helper to map job type to standard format
+function mapJobType(type?: string): 'full-time' | 'part-time' | 'contract' | 'internship' | 'temporary' | 'freelance' | undefined {
+  if (!type) return undefined;
+  const lower = type.toLowerCase();
+  if (lower.includes('full') || lower === 'ft') return 'full-time';
+  if (lower.includes('part') || lower === 'pt') return 'part-time';
+  if (lower.includes('contract') || lower === 'ctc') return 'contract';
+  if (lower.includes('intern')) return 'internship';
+  if (lower.includes('temp') || lower.includes('temporary')) return 'temporary';
+  if (lower.includes('freelance') || lower.includes('freelance')) return 'freelance';
+  return undefined;
+}
+
+// Helper to map experience level to standard format
+function mapExperienceLevel(level?: string): 'entry' | 'mid' | 'senior' | 'lead' | 'director' | 'executive' | undefined {
+  if (!level) return undefined;
+  const lower = level.toLowerCase();
+  if (lower.includes('entry') || lower.includes('junior') || lower.includes('jr')) return 'entry';
+  if (lower.includes('mid') || lower.includes('intermediate')) return 'mid';
+  if (lower.includes('senior') || lower.includes('sr')) return 'senior';
+  if (lower.includes('lead')) return 'lead';
+  if (lower.includes('director')) return 'director';
+  if (lower.includes('executive')) return 'executive';
+  return undefined;
+}
+
+// Helper to map salary period
+function mapSalaryPeriod(period?: string): 'hourly' | 'monthly' | 'yearly' | undefined {
+  if (!period) return undefined;
+  const lower = period.toLowerCase();
+  if (lower.includes('hour')) return 'hourly';
+  if (lower.includes('month')) return 'monthly';
+  if (lower.includes('year') || lower.includes('annum')) return 'yearly';
+  return undefined;
+}
+
+// Helper to extract city from location string
+function extractCity(location?: string): string | undefined {
+  if (!location) return undefined;
+  const parts = location.split(',');
+  return parts[0]?.trim();
+}
+
+// Helper to extract country from location string
+function extractCountry(location?: string): string | undefined {
+  if (!location) return undefined;
+  const parts = location.split(',');
+  return parts[parts.length - 1]?.trim();
+}
+
+// Get jobs from scrapedJobs collection
+export async function getScrapedJobs(
+  filters: JobFilters = {},
+  sortBy: SortOption = 'recent',
+  pageSize: number = 20,
+  lastDoc?: any
+): Promise<{ jobs: JobData[]; lastDocument: any; hasMore: boolean }> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  // Query scrapedJobs collection - get all documents
+  const q = query(
+    collection(db, 'scrapedJobs'),
+    limit(pageSize * 3)
+  );
+
+  let snapshot = await getDocs(q);
+
+  let jobs: JobData[] = snapshot.docs.map(doc => {
+    const data = doc.data() as ScrapedJobData;
+    return convertScrapedJobToJobData({ ...data, id: doc.id });
+  });
+
+  // Client-side filtering for employment type
+  const employmentTypes = filters.employmentType || [];
+  if (employmentTypes.length > 0) {
+    jobs = jobs.filter(job =>
+      job.employment?.type && employmentTypes.includes(job.employment.type)
+    );
+  }
+
+  // Client-side filtering for experience level
+  const experienceLevels = filters.experienceLevel || [];
+  if (experienceLevels.length > 0) {
+    jobs = jobs.filter(job =>
+      job.employment?.experienceLevel && experienceLevels.includes(job.employment.experienceLevel)
+    );
+  }
+
+  // Client-side filtering for category
+  if (filters.category) {
+    jobs = jobs.filter(job => job.category === filters.category);
+  }
+
+  // Client-side filtering for date posted
+  if (filters.datePosted && filters.datePosted !== 'any') {
+    const now = new Date();
+    let cutoffDate: Date;
+
+    switch (filters.datePosted) {
+      case '24h':
+        cutoffDate = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        break;
+      case 'week':
+        cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case 'month':
+        cutoffDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      default:
+        cutoffDate = new Date(0);
+    }
+
+    jobs = jobs.filter(job => {
+      if (!job.createdAt) return true;
+      let jobDate: Date;
+      if (job.createdAt.toDate) {
+        jobDate = job.createdAt.toDate();
+      } else {
+        jobDate = new Date(job.createdAt);
+      }
+      return jobDate >= cutoffDate;
+    });
+  }
+
+  // Client-side filtering for remote policy
+  if (filters.remotePolicy && filters.remotePolicy.length > 0) {
+    jobs = jobs.filter(job =>
+      job.location?.remotePolicy && (filters.remotePolicy ?? []).includes(job.location.remotePolicy)
+    );
+  }
+
+  // Salary filtering
+  if (filters.salaryMin) {
+    jobs = jobs.filter(job =>
+      job.salary?.max && job.salary.max >= filters.salaryMin!
+    );
+  }
+
+  if (filters.salaryMax) {
+    jobs = jobs.filter(job =>
+      job.salary?.min && job.salary.min <= filters.salaryMax!
+    );
+  }
+
+  // Location filtering
+  if (filters.location?.city) {
+    jobs = jobs.filter(job =>
+      job.location?.city?.toLowerCase().includes(filters.location!.city!.toLowerCase())
+    );
+  }
+
+  if (filters.location?.country) {
+    jobs = jobs.filter(job =>
+      job.location?.country?.toLowerCase().includes(filters.location!.country!.toLowerCase())
+    );
+  }
+
+  // Tags/skills filtering
+  if (filters.tags && filters.tags.length > 0) {
+    jobs = jobs.filter(job =>
+      job.tags?.some(tag => filters.tags!.includes(tag))
+    );
+  }
+
+  // Text search
+  if (filters.search) {
+    const searchLower = filters.search.toLowerCase();
+    jobs = jobs.filter(job =>
+      job.title?.toLowerCase().includes(searchLower) ||
+      job.companyName?.toLowerCase().includes(searchLower) ||
+      job.description?.toLowerCase().includes(searchLower) ||
+      job.shortDescription?.toLowerCase().includes(searchLower) ||
+      job.tags?.some(tag => tag.toLowerCase().includes(searchLower)) ||
+      job.location?.city?.toLowerCase().includes(searchLower) ||
+      job.location?.country?.toLowerCase().includes(searchLower)
+    );
+  }
+
+  // Sort
+  switch (sortBy) {
+    case 'recent':
+      jobs.sort((a, b) => {
+        const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : (a.createdAt ? new Date(a.createdAt) : new Date(0));
+        const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : (b.createdAt ? new Date(b.createdAt) : new Date(0));
+        return dateB.getTime() - dateA.getTime();
+      });
+      break;
+    case 'salary_high':
+      jobs.sort((a, b) => (b.salary?.max || 0) - (a.salary?.max || 0));
+      break;
+    case 'salary_low':
+      jobs.sort((a, b) => (a.salary?.min || 0) - (b.salary?.min || 0));
+      break;
+    case 'company_az':
+      jobs.sort((a, b) => (a.companyName || '').localeCompare(b.companyName || ''));
+      break;
+  }
+
+  // Limit results
+  const totalJobsCount = jobs.length;
+  jobs = jobs.slice(0, pageSize);
+
+  return {
+    jobs,
+    lastDocument: null,
+    hasMore: totalJobsCount > pageSize,
+  };
+}
+
+// Get categories from scrapedJobs
+export async function getScrapedCategories(): Promise<string[]> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const snapshot = await getDocs(collection(db, 'scrapedJobs'));
+  const categories = new Set<string>();
+
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    if (data.category) categories.add(data.category);
+    if (data.job_type) categories.add(data.job_type);
+    if (Array.isArray(data.tags)) {
+      data.tags.forEach((tag: string) => categories.add(tag));
+    }
+    if (Array.isArray(data.skills)) {
+      data.skills.forEach((skill: string) => categories.add(skill));
+    }
+  });
+
+  return Array.from(categories).sort();
+}
+
+// Get locations from scrapedJobs
+export async function getScrapedLocations(): Promise<{ city: string; country: string }[]> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const snapshot = await getDocs(collection(db, 'scrapedJobs'));
+  const locations = new Set<string>();
+
+  snapshot.docs.forEach(doc => {
+    const data = doc.data();
+    // Use city/country fields if available
+    if (data.city && data.country) {
+      locations.add(`${data.city}, ${data.country}`);
+    } else if (data.location) {
+      // Fall back to location string
+      locations.add(data.location);
+    }
+  });
+
+  return Array.from(locations).map(loc => {
+    const [city, ...countryParts] = loc.split(', ');
+    return { city: city.trim(), country: countryParts.join(', ').trim() };
+  });
 }
 
 // Create a new job
@@ -292,6 +644,19 @@ export async function getJobBySlug(slug: string): Promise<JobData | null> {
     jobId: doc.id,
     ...doc.data(),
   } as JobData;
+}
+
+// Get a single scraped job by ID
+export async function getScrapedJobById(jobId: string): Promise<JobData | null> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const jobRef = doc(db, 'scrapedJobs', jobId);
+  const jobSnap = await getDoc(jobRef);
+
+  if (!jobSnap.exists()) return null;
+
+  const data = jobSnap.data() as ScrapedJobData;
+  return convertScrapedJobToJobData({ ...data, id: jobSnap.id });
 }
 
 // Get jobs with filters and sorting

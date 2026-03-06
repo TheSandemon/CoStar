@@ -4,10 +4,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import Link from "next/link";
-import { User, Building2, Briefcase, Settings, Star, CheckCircle2, Github, Linkedin, LogOut } from "lucide-react";
+import NavHeader from "@/components/NavHeader";
+import { User, Building2, Briefcase, Settings, Star, CheckCircle2, Github, Linkedin } from "lucide-react";
 
 export default function DashboardPage() {
-  const { user, logout, loading } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -28,48 +29,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-900">
-      {/* Header */}
-      <header className="border-b border-white/10 bg-slate-800/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center">
-              <span className="text-slate-900 font-bold">C</span>
-            </div>
-            <span className="text-white font-bold">CoStar</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <nav className="hidden md:flex items-center gap-6">
-              <Link href="/jobs" className="text-slate-300 hover:text-white transition-colors">Jobs</Link>
-              <Link href="#" className="text-slate-300 hover:text-white transition-colors">Companies</Link>
-              <Link href="#" className="text-slate-300 hover:text-white transition-colors">Messages</Link>
-            </nav>
-
-            {/* User Menu */}
-            <div className="flex items-center gap-3">
-              {user.photoURL ? (
-                <img
-                  src={user.photoURL}
-                  alt={user.displayName || "User"}
-                  className="w-8 h-8 rounded-full"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center">
-                  <span className="text-slate-900 font-bold">
-                    {user.displayName?.[0] || user.email?.[0] || "U"}
-                  </span>
-                </div>
-              )}
-              <button
-                onClick={logout}
-                className="p-2 text-slate-400 hover:text-white transition-colors"
-                title="Sign out"
-              >
-                <LogOut size={20} />
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <NavHeader />
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
