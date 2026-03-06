@@ -313,7 +313,7 @@ export function convertScrapedJobToJobData(scraped: ScrapedJobData): JobData {
     tags: scraped.tags || scraped.skills,
     category: scraped.category,
     application: {
-      url: scraped.apply_url || scraped.application_url || scraped.url || scraped.link || scraped.applyLink || scraped.job_url || scraped.jobUrl || scraped.applyUrl || scraped.application_link || scraped.apply_link || scraped.external_url || scraped.job_link || scraped.apply_link_url || scraped.posting_url || '',
+      url: scraped.apply_url || scraped.application_url || scraped.url || scraped.link || scraped.applyLink || scraped.job_url || scraped.jobUrl || scraped.applyUrl || scraped.application_link || scraped.apply_link || scraped.external_url || scraped.job_link || scraped.apply_link_url || scraped.posting_url || undefined,
       method: (scraped.apply_url || scraped.application_url || scraped.url || scraped.link || scraped.applyUrl || scraped.application_link || scraped.apply_link || scraped.external_url || scraped.job_link || scraped.apply_link_url || scraped.posting_url) ? 'external' : undefined,
       email: scraped.email || scraped.apply_email || scraped.contact_email,
     },
