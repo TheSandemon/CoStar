@@ -26,6 +26,13 @@ export const GEMINI_CONFIG = {
   // Feedback generation
   feedbackTemperature: 0.3,
 
+  // Question count per difficulty level (replaces time limit)
+  questionCount: {
+    easy: 5,
+    medium: 8,
+    hard: 12,
+  } as Record<string, number>,
+
   // Ephemeral token lifetime (milliseconds)
   tokenTtlMs: 30 * 60 * 1000,       // 30 minutes
   sessionTtlMs: 2 * 60 * 1000,      // 2 minutes new-session window

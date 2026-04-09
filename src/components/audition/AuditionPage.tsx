@@ -14,7 +14,6 @@ import type { JobData } from '@/lib/jobs';
 import { useGeminiLiveSession } from '@/hooks/useGeminiLiveSession';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useAudioPlayback } from '@/hooks/useAudioPlayback';
-import { useInterviewTimer } from '@/hooks/useInterviewTimer';
 import { useTranscript } from '@/hooks/useTranscript';
 
 import { SetupScreen } from './SetupScreen';
@@ -29,7 +28,6 @@ interface AuditionPageProps {
 const DEFAULT_CONFIG: AuditionConfig = {
   interviewType: 'mixed',
   difficulty: 'medium',
-  durationMinutes: 10,
   mediaMode: 'voice',
 };
 
@@ -44,6 +42,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const [sessionError, setSessionError] = useState<string | null>(null);
 
   const sessionStartRef = useRef<number>(0);
+  const interviewStartTimeRef = useRef<number>(0);
 
   // Load job data in job mode only
   useEffect(() => {
@@ -98,19 +97,13 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     audioCapture.setPaused(isPlaying);
   }, [isPlaying, audioCapture.setPaused]);
 
-  // Timer
-  const handleTimerExpire = useCallback(() => {
-    handleEndInterview();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const timer = useInterviewTimer(config.durationMinutes * 60, handleTimerExpire);
-
   const handleStartAudition = useCallback(async () => {
     setPhase('requesting-permission');
     setSessionError(null);
 
     const granted = await audioCapture.requestPermission();
     if (!granted) {
+      setSessionError(audioCapture.error ?? 'Microphone permission denied');
       setPhase('setup');
       return;
     }
@@ -138,22 +131,21 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
 
       audioCapture.startCapture();
       sessionStartRef.current = Date.now();
-      timer.start();
+      interviewStartTimeRef.current = Date.now();
       setPhase('interviewing');
     } catch (err) {
       setSessionError(err instanceof Error ? err.message : 'Failed to start session');
       setPhase('setup');
     }
-  }, [user, job, jobText, mode, config, audioCapture, connect, timer]);
+  }, [user, job, jobText, mode, config, audioCapture, connect]);
 
   const handleEndInterview = useCallback(async () => {
     setPhase('ending');
-    timer.pause();
     disconnect();
     audioCapture.stopCapture();
     stopPlayback();
 
-    const durationSeconds = Math.round((Date.now() - sessionStartRef.current) / 1000);
+    const durationSeconds = Math.round((Date.now() - interviewStartTimeRef.current) / 1000);
     const finalEntries = entries.map((e) => ({ ...e, isFinal: true }));
 
     const resolvedTitle = mode === 'freeform' ? 'Custom Role' : (job?.title ?? 'Unknown Role');
@@ -196,16 +188,15 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     }
 
     setPhase('results');
-  }, [timer, disconnect, audioCapture, stopPlayback, entries, job, jobText, mode, config]);
+  }, [disconnect, audioCapture, stopPlayback, entries, job, jobText, mode, config]);
 
   const handleTryAgain = useCallback(() => {
     closePlayback();
     resetTranscript();
-    timer.reset();
     setResults(null);
     setSessionError(null);
     setPhase('setup');
-  }, [closePlayback, resetTranscript, timer]);
+  }, [closePlayback, resetTranscript]);
 
   const handleConfigChange = useCallback((patch: Partial<AuditionConfig>) => {
     setConfig((c) => ({ ...c, ...patch }));
@@ -239,8 +230,6 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
         isConnecting={phase === 'connecting'}
         isMuted={audioCapture.isMuted}
         entries={entries}
-        secondsRemaining={timer.secondsRemaining}
-        percentRemaining={timer.percentRemaining}
         analyserRef={analyserRef}
         onToggleMute={audioCapture.toggleMute}
         onEndInterview={handleEndInterview}

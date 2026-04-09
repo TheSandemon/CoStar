@@ -1,3 +1,4 @@
+import NavHeader from '@/components/NavHeader';
 import { AuditionPage } from '@/components/audition/AuditionPage';
 
 interface Props {
@@ -5,5 +6,10 @@ interface Props {
 }
 
 export default function AuditionRoute({ params }: Props) {
-  return <AuditionPage jobId={params.jobId} />;
+  return (
+    <>
+      <NavHeader />
+      <AuditionPage jobId={params.jobId} />
+    </>
+  );
 }

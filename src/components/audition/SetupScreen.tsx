@@ -1,7 +1,8 @@
 'use client';
 
-import { Mic, Brain, Users, Shuffle, Clock, ChevronRight, Video } from 'lucide-react';
-import type { AuditionConfig, InterviewType, Difficulty, Duration } from '@/lib/audition/types';
+import { Mic, Brain, Users, Shuffle, ChevronRight, Video } from 'lucide-react';
+import type { AuditionConfig, InterviewType, Difficulty } from '@/lib/audition/types';
+import { GEMINI_CONFIG } from '@/lib/audition/config';
 import type { JobData } from '@/lib/jobs';
 
 interface SetupScreenProps {
@@ -22,13 +23,11 @@ const INTERVIEW_TYPES: { value: InterviewType; label: string; icon: React.ReactN
   { value: 'mixed', label: 'Mixed', icon: <Shuffle className="w-4 h-4" />, desc: 'Both types' },
 ];
 
-const DIFFICULTIES: { value: Difficulty; label: string; color: string }[] = [
-  { value: 'easy', label: 'Easy', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
-  { value: 'medium', label: 'Medium', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
-  { value: 'hard', label: 'Hard', color: 'text-red-400 border-red-500/30 bg-red-500/10' },
+const DIFFICULTIES: { value: Difficulty; label: string; color: string; questions: number }[] = [
+  { value: 'easy', label: 'Easy', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', questions: GEMINI_CONFIG.questionCount.easy },
+  { value: 'medium', label: 'Medium', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10', questions: GEMINI_CONFIG.questionCount.medium },
+  { value: 'hard', label: 'Hard', color: 'text-red-400 border-red-500/30 bg-red-500/10', questions: GEMINI_CONFIG.questionCount.hard },
 ];
-
-const DURATIONS: Duration[] = [5, 10, 15];
 
 export function SetupScreen({
   job,
@@ -111,29 +110,8 @@ export function SetupScreen({
                     : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600'
                 }`}
               >
-                {d.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Duration */}
-        <div className="space-y-3">
-          <label className="text-slate-300 text-sm font-medium flex items-center gap-2">
-            <Clock className="w-4 h-4" /> Duration
-          </label>
-          <div className="flex gap-2">
-            {DURATIONS.map((d) => (
-              <button
-                key={d}
-                onClick={() => onConfigChange({ durationMinutes: d })}
-                className={`flex-1 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                  config.durationMinutes === d
-                    ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
-                    : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600'
-                }`}
-              >
-                {d} min
+                <span>{d.label}</span>
+                <span className="text-xs font-normal opacity-70">{d.questions}q</span>
               </button>
             ))}
           </div>

@@ -5,7 +5,6 @@ import type { AIStatus } from '@/lib/audition/types';
 import type { TranscriptEntry } from '@/lib/audition/types';
 import { AudioVisualizer } from './AudioVisualizer';
 import { TranscriptPanel } from './TranscriptPanel';
-import { TimerDisplay } from './TimerDisplay';
 import { VideoPreview } from './VideoPreview';
 
 interface InterviewScreenProps {
@@ -15,8 +14,6 @@ interface InterviewScreenProps {
   isConnecting: boolean;
   isMuted: boolean;
   entries: TranscriptEntry[];
-  secondsRemaining: number;
-  percentRemaining: number;
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
   onToggleMute: () => void;
   onEndInterview: () => void;
@@ -43,8 +40,6 @@ export function InterviewScreen({
   isConnecting,
   isMuted,
   entries,
-  secondsRemaining,
-  percentRemaining,
   analyserRef,
   onToggleMute,
   onEndInterview,
@@ -57,7 +52,7 @@ export function InterviewScreen({
           <p className="text-white font-semibold text-sm">{jobTitle}</p>
           <p className="text-slate-500 text-xs">{companyName}</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           {isConnecting ? (
             <div className="flex items-center gap-2 text-amber-400 text-xs font-medium">
               <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
@@ -75,7 +70,6 @@ export function InterviewScreen({
               </span>
             </div>
           )}
-          <TimerDisplay secondsRemaining={secondsRemaining} percentRemaining={percentRemaining} />
         </div>
       </div>
 
