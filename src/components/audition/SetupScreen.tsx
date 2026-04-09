@@ -6,6 +6,9 @@ import type { JobData } from '@/lib/jobs';
 
 interface SetupScreenProps {
   job: JobData;
+  mode?: 'job' | 'freeform';
+  jobText?: string;
+  onJobTextChange?: (text: string) => void;
   config: AuditionConfig;
   onConfigChange: (patch: Partial<AuditionConfig>) => void;
   onStart: () => void;
@@ -29,23 +32,47 @@ const DURATIONS: Duration[] = [5, 10, 15];
 
 export function SetupScreen({
   job,
+  mode = 'job',
+  jobText = '',
+  onJobTextChange,
   config,
   onConfigChange,
   onStart,
   isRequestingPermission,
   micError,
 }: SetupScreenProps) {
+  const canStart = mode === 'freeform' ? jobText.trim().length > 0 : true;
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg space-y-8">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-semibold mb-3">
+        <div className={mode === 'freeform' ? 'space-y-3' : 'text-center space-y-2'}>
+          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-semibold ${mode === 'freeform' ? '' : 'mb-3'}`}>
             <Mic className="w-3 h-3" />
             AI AUDITION
           </div>
-          <h1 className="text-2xl font-bold text-white">{job.title}</h1>
-          <p className="text-slate-400 text-sm">{job.companyName}</p>
+          {mode === 'freeform' ? (
+            <div className="space-y-2">
+              <label className="text-slate-300 text-sm font-medium block">
+                Paste a job posting
+              </label>
+              <textarea
+                value={jobText}
+                onChange={(e) => onJobTextChange?.(e.target.value)}
+                placeholder="Paste the full job description here — title, responsibilities, requirements, company info..."
+                rows={8}
+                className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 text-slate-200 text-sm resize-none focus:outline-none focus:border-violet-500/50 placeholder-slate-600 leading-relaxed"
+              />
+              <p className="text-slate-500 text-xs">
+                The AI will tailor every question to this posting.
+              </p>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-white">{job.title}</h1>
+              <p className="text-slate-400 text-sm">{job.companyName}</p>
+            </>
+          )}
         </div>
 
         {/* Interview Type */}
@@ -133,7 +160,7 @@ export function SetupScreen({
         {/* Start button */}
         <button
           onClick={onStart}
-          disabled={isRequestingPermission}
+          disabled={isRequestingPermission || !canStart}
           className="w-full flex items-center justify-center gap-2 py-4 rounded-xl
             bg-gradient-to-r from-violet-600 to-purple-600
             hover:from-violet-500 hover:to-purple-500
