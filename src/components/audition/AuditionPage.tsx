@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { getScrapedJobById } from '@/lib/jobs';
-import { buildSystemPrompt } from '@/lib/audition/systemPrompt';
+import { buildSystemPrompt, buildSystemPromptFromText } from '@/lib/audition/systemPrompt';
 import type {
   AuditionPhase,
   AuditionConfig,
@@ -22,7 +22,8 @@ import { InterviewScreen } from './InterviewScreen';
 import { ResultsScreen } from './ResultsScreen';
 
 interface AuditionPageProps {
-  jobId: string;
+  jobId?: string;
+  mode?: 'job' | 'freeform';
 }
 
 const DEFAULT_CONFIG: AuditionConfig = {
@@ -32,21 +33,24 @@ const DEFAULT_CONFIG: AuditionConfig = {
   mediaMode: 'voice',
 };
 
-export function AuditionPage({ jobId }: AuditionPageProps) {
+export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const { user } = useAuth() as { user: { getIdToken: () => Promise<string> } | null };
 
   const [phase, setPhase] = useState<AuditionPhase>('setup');
   const [job, setJob] = useState<JobData | null>(null);
+  const [jobText, setJobText] = useState('');
   const [config, setConfig] = useState<AuditionConfig>(DEFAULT_CONFIG);
   const [results, setResults] = useState<AuditionResults | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
   const sessionStartRef = useRef<number>(0);
 
-  // Load job data
+  // Load job data in job mode only
   useEffect(() => {
-    getScrapedJobById(jobId).then((j) => setJob(j ?? null));
-  }, [jobId]);
+    if (mode === 'job' && jobId) {
+      getScrapedJobById(jobId).then((j) => setJob(j ?? null));
+    }
+  }, [mode, jobId]);
 
   // Transcript
   const { entries, addPartial, finalizeLast, reset: resetTranscript } = useTranscript();
@@ -79,7 +83,7 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
     },
   });
 
-  // Audio capture — paused while AI is speaking
+  // Audio capture — paused while AI is playing audio
   const audioCapture = useAudioCapture({
     onChunk: useCallback(
       (base64: string) => {
@@ -125,7 +129,11 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
       if (!res.ok) throw new Error('Failed to get session token');
       const { token } = (await res.json()) as { token: string };
 
-      const systemPrompt = buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config);
+      const systemPrompt =
+        mode === 'freeform'
+          ? buildSystemPromptFromText(jobText, config)
+          : buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config);
+
       await connect(token, systemPrompt, config);
 
       audioCapture.startCapture();
@@ -136,7 +144,7 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
       setSessionError(err instanceof Error ? err.message : 'Failed to start session');
       setPhase('setup');
     }
-  }, [user, job, config, audioCapture, connect, timer]);
+  }, [user, job, jobText, mode, config, audioCapture, connect, timer]);
 
   const handleEndInterview = useCallback(async () => {
     setPhase('ending');
@@ -148,14 +156,17 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
     const durationSeconds = Math.round((Date.now() - sessionStartRef.current) / 1000);
     const finalEntries = entries.map((e) => ({ ...e, isFinal: true }));
 
+    const resolvedTitle = mode === 'freeform' ? 'Custom Role' : (job?.title ?? 'Unknown Role');
+    const resolvedCompany = mode === 'freeform' ? '' : (job?.companyName ?? 'Unknown Company');
+
     try {
       const res = await fetch('/api/audition/feedback', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           transcript: finalEntries,
-          jobTitle: job?.title ?? 'Unknown Role',
-          companyName: job?.companyName ?? 'Unknown Company',
+          jobTitle: resolvedTitle,
+          companyName: resolvedCompany,
           interviewType: config.interviewType,
           difficulty: config.difficulty,
         }),
@@ -185,7 +196,7 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
     }
 
     setPhase('results');
-  }, [timer, disconnect, audioCapture, stopPlayback, entries, job, config]);
+  }, [timer, disconnect, audioCapture, stopPlayback, entries, job, jobText, mode, config]);
 
   const handleTryAgain = useCallback(() => {
     closePlayback();
@@ -200,10 +211,16 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
     setConfig((c) => ({ ...c, ...patch }));
   }, []);
 
+  const displayTitle = mode === 'freeform' ? 'Custom Interview' : (job?.title ?? 'Interview');
+  const displayCompany = mode === 'freeform' ? '' : (job?.companyName ?? '');
+
   if (phase === 'setup' || phase === 'requesting-permission') {
     return (
       <SetupScreen
         job={job ?? { title: 'Loading...', companyName: '' }}
+        mode={mode}
+        jobText={jobText}
+        onJobTextChange={setJobText}
         config={config}
         onConfigChange={handleConfigChange}
         onStart={handleStartAudition}
@@ -216,8 +233,8 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
   if (phase === 'interviewing' || phase === 'connecting' || phase === 'ending') {
     return (
       <InterviewScreen
-        jobTitle={job?.title ?? 'Interview'}
-        companyName={job?.companyName ?? ''}
+        jobTitle={displayTitle}
+        companyName={displayCompany}
         aiStatus={aiStatus}
         isConnecting={phase === 'connecting'}
         isMuted={audioCapture.isMuted}
@@ -235,9 +252,9 @@ export function AuditionPage({ jobId }: AuditionPageProps) {
     return (
       <ResultsScreen
         results={results}
-        jobTitle={job?.title ?? 'Interview'}
-        companyName={job?.companyName ?? ''}
-        jobId={jobId}
+        jobTitle={displayTitle}
+        companyName={displayCompany}
+        jobId={jobId ?? ''}
         onTryAgain={handleTryAgain}
       />
     );
