@@ -13,6 +13,12 @@ interface UseGeminiLiveSessionOptions {
   onError: (msg: string) => void;
 }
 
+export interface GeminiSessionOverrides {
+  liveModel?: string;
+  liveApiHost?: string;
+  voiceName?: string;
+}
+
 export function useGeminiLiveSession({
   onAudioChunk,
   onAITranscript,
@@ -107,12 +113,16 @@ export function useGeminiLiveSession({
   }, []);
 
   const connect = useCallback(
-    async (token: string, systemPrompt: string, config: AuditionConfig) => {
+    async (token: string, systemPrompt: string, config: AuditionConfig, overrides?: GeminiSessionOverrides) => {
       if (wsRef.current) {
         wsRef.current.close();
       }
 
-      const url = `wss://${GEMINI_CONFIG.liveApiHost}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${token}`;
+      const host = overrides?.liveApiHost ?? GEMINI_CONFIG.liveApiHost;
+      const model = overrides?.liveModel ?? GEMINI_CONFIG.liveModel;
+      const voice = overrides?.voiceName ?? GEMINI_CONFIG.voiceName;
+
+      const url = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${token}`;
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -123,7 +133,7 @@ export function useGeminiLiveSession({
         // Send setup message
         const setup = {
           setup: {
-            model: GEMINI_CONFIG.liveModel,
+            model,
             system_instruction: {
               parts: [{ text: systemPrompt }],
             },
@@ -132,7 +142,7 @@ export function useGeminiLiveSession({
               speech_config: {
                 voice_config: {
                   prebuilt_voice_config: {
-                    voice_name: GEMINI_CONFIG.voiceName,
+                    voice_name: voice,
                   },
                 },
               },

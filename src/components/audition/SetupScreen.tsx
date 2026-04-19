@@ -1,6 +1,6 @@
 'use client';
 
-import { Mic, Brain, Users, Shuffle, ChevronRight, Video } from 'lucide-react';
+import { Mic, Brain, Users, Shuffle, ChevronRight, Video, Settings, AlertTriangle } from 'lucide-react';
 import type { AuditionConfig, InterviewType, Difficulty } from '@/lib/audition/types';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
 import type { JobData } from '@/lib/jobs';
@@ -15,6 +15,8 @@ interface SetupScreenProps {
   onStart: () => void;
   isRequestingPermission: boolean;
   micError: string | null;
+  hasApiKey: boolean;
+  onOpenSettings: () => void;
 }
 
 const INTERVIEW_TYPES: { value: InterviewType; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -39,16 +41,27 @@ export function SetupScreen({
   onStart,
   isRequestingPermission,
   micError,
+  hasApiKey,
+  onOpenSettings,
 }: SetupScreenProps) {
-  const canStart = mode === 'freeform' ? jobText.trim().length > 0 : true;
+  const canStart = (mode === 'freeform' ? jobText.trim().length > 0 : true) && hasApiKey;
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center px-4 py-12">
       <div className="w-full max-w-lg space-y-8">
         {/* Header */}
         <div className={mode === 'freeform' ? 'space-y-3' : 'text-center space-y-2'}>
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-semibold ${mode === 'freeform' ? '' : 'mb-3'}`}>
-            <Mic className="w-3 h-3" />
-            AI AUDITION
+          <div className="flex items-center justify-between">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-600/20 border border-violet-500/30 text-violet-300 text-xs font-semibold ${mode === 'freeform' ? '' : 'mb-3'}`}>
+              <Mic className="w-3 h-3" />
+              AI AUDITION
+            </div>
+            <button
+              onClick={onOpenSettings}
+              className="p-2 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800/60 transition-all"
+              title="Audition settings"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
           </div>
           {mode === 'freeform' ? (
             <div className="space-y-2">
@@ -128,10 +141,21 @@ export function SetupScreen({
           </span>
         </div>
 
-        {/* Error */}
+        {/* API key missing warning */}
+        {!hasApiKey && (
+          <div
+            className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-sm cursor-pointer hover:bg-amber-500/15 transition-colors"
+            onClick={onOpenSettings}
+          >
+            <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+            <span>No Gemini API key configured. <span className="underline">Open settings</span> to add one before starting.</span>
+          </div>
+        )}
+
+        {/* Mic error */}
         {micError && (
           <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
-            {micError}. Please allow microphone access and try again.
+            {micError}
           </div>
         )}
 

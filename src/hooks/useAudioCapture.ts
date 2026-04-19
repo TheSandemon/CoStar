@@ -23,24 +23,76 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
   onChunkRef.current = onChunk;
 
   const requestPermission = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      const msg = 'Microphone requires a secure connection (HTTPS or localhost).';
+      setError(msg);
+      return { granted: false, errorText: msg };
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          sampleRate: GEMINI_CONFIG.inputSampleRate,
-          channelCount: 1,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-      });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       setHasPermission(true);
       setError(null);
-      return true;
+      try { localStorage.setItem('micPermissionGranted', 'true'); } catch (e) {}
+      return { granted: true };
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Microphone permission denied');
-      return false;
+      const name = err instanceof DOMException ? err.name : '';
+      const raw = err instanceof Error ? err.message : String(err);
+      let msg: string;
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        msg = "Browser blocked microphone access. Click the lock icon in the address bar and allow Microphone.";
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = "Windows is blocking microphone access. Go to: Windows Settings → Privacy & Security → Microphone → turn ON 'Let apps access your microphone' AND enable your browser (Chrome/Edge) in the list below.";
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = 'Microphone is in use by another app. Close other apps using the mic and try again.';
+      } else if (name === 'OverconstrainedError') {
+        msg = 'Microphone does not support the required audio format. Try a different device.';
+      } else {
+        msg = `Microphone error (${name || 'unknown'}): ${raw}`;
+      }
+      setError(msg);
+      return { granted: false, errorText: msg };
     }
+  }, []);
+
+  const preloadPermission = useCallback(async () => {
+    if (localStorage.getItem('micPermissionGranted') === 'true') return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+      localStorage.setItem('micPermissionGranted', 'true');
+    } catch {
+      // silent — main requestPermission will surface the real error
+    }
+  }, []);
+
+  const diagnoseMic = useCallback(async () => {
+    const lines: string[] = [];
+    try {
+      if (!navigator.mediaDevices) {
+        return ['navigator.mediaDevices is undefined — not a secure context (need HTTPS or localhost).'];
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((d) => d.kind === 'audioinput');
+      if (audioInputs.length === 0) {
+        lines.push('No audioinput devices found by the browser.');
+        lines.push('This usually means Windows Privacy Settings are blocking device enumeration.');
+        lines.push('Fix: Windows Settings → Privacy & Security → Microphone → Enable for this browser.');
+      } else {
+        lines.push(`Found ${audioInputs.length} audio input device(s):`);
+        audioInputs.forEach((d, i) => {
+          lines.push(`  [${i + 1}] ${d.label || '(label hidden — permission not yet granted)'} | id: ${d.deviceId.slice(0, 16)}...`);
+        });
+        if (audioInputs.every((d) => !d.label)) {
+          lines.push('');
+          lines.push('All labels are hidden — browser has no mic permission yet. Click Test Microphone to grant it.');
+        }
+      }
+    } catch (err) {
+      lines.push(`enumerateDevices() threw: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return lines;
   }, []);
 
   const startCapture = useCallback(() => {
@@ -99,6 +151,8 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
     isCapturing,
     error,
     requestPermission,
+    preloadPermission,
+    diagnoseMic,
     startCapture,
     stopCapture,
     setPaused,

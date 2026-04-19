@@ -15,10 +15,12 @@ import { useGeminiLiveSession } from '@/hooks/useGeminiLiveSession';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useAudioPlayback } from '@/hooks/useAudioPlayback';
 import { useTranscript } from '@/hooks/useTranscript';
+import { useAuditionSettings } from '@/hooks/useAuditionSettings';
 
 import { SetupScreen } from './SetupScreen';
 import { InterviewScreen } from './InterviewScreen';
 import { ResultsScreen } from './ResultsScreen';
+import { AuditionSettingsModal } from './AuditionSettingsModal';
 
 interface AuditionPageProps {
   jobId?: string;
@@ -32,7 +34,7 @@ const DEFAULT_CONFIG: AuditionConfig = {
 };
 
 export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
-  const { user } = useAuth() as { user: { getIdToken: () => Promise<string> } | null };
+  const { user } = useAuth() as { user: { uid: string; getIdToken: () => Promise<string> } | null };
 
   const [phase, setPhase] = useState<AuditionPhase>('setup');
   const [job, setJob] = useState<JobData | null>(null);
@@ -40,6 +42,9 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const [config, setConfig] = useState<AuditionConfig>(DEFAULT_CONFIG);
   const [results, setResults] = useState<AuditionResults | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  const { settings, save: saveSettings } = useAuditionSettings(user?.uid ?? null);
 
   const sessionStartRef = useRef<number>(0);
   const interviewStartTimeRef = useRef<number>(0);
@@ -97,13 +102,20 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     audioCapture.setPaused(isPlaying);
   }, [isPlaying, audioCapture.setPaused]);
 
+  // Request permissions immediately on mount if not cached
+  useEffect(() => {
+    if (phase === 'setup') {
+      audioCapture.preloadPermission();
+    }
+  }, [phase, audioCapture.preloadPermission]);
+
   const handleStartAudition = useCallback(async () => {
     setPhase('requesting-permission');
     setSessionError(null);
 
-    const granted = await audioCapture.requestPermission();
-    if (!granted) {
-      setSessionError(audioCapture.error ?? 'Microphone permission denied');
+    const result = await audioCapture.requestPermission();
+    if (!result || !result.granted) {
+      setSessionError(result?.errorText ?? 'Microphone permission denied');
       setPhase('setup');
       return;
     }
@@ -127,7 +139,11 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
           ? buildSystemPromptFromText(jobText, config)
           : buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config);
 
-      await connect(token, systemPrompt, config);
+      await connect(token, systemPrompt, config, {
+        liveModel: settings.liveModel || undefined,
+        liveApiHost: settings.liveApiHost || undefined,
+        voiceName: settings.voiceName || undefined,
+      });
 
       audioCapture.startCapture();
       sessionStartRef.current = Date.now();
@@ -137,7 +153,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       setSessionError(err instanceof Error ? err.message : 'Failed to start session');
       setPhase('setup');
     }
-  }, [user, job, jobText, mode, config, audioCapture, connect]);
+  }, [user, job, jobText, mode, config, audioCapture, connect, settings]);
 
   const handleEndInterview = useCallback(async () => {
     setPhase('ending');
@@ -152,9 +168,13 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     const resolvedCompany = mode === 'freeform' ? '' : (job?.companyName ?? 'Unknown Company');
 
     try {
+      const idToken = user ? await user.getIdToken() : '';
       const res = await fetch('/api/audition/feedback', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+        },
         body: JSON.stringify({
           transcript: finalEntries,
           jobTitle: resolvedTitle,
@@ -207,17 +227,30 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
 
   if (phase === 'setup' || phase === 'requesting-permission') {
     return (
-      <SetupScreen
-        job={job ?? { title: 'Loading...', companyName: '' }}
-        mode={mode}
-        jobText={jobText}
-        onJobTextChange={setJobText}
-        config={config}
-        onConfigChange={handleConfigChange}
-        onStart={handleStartAudition}
-        isRequestingPermission={phase === 'requesting-permission'}
-        micError={sessionError}
-      />
+      <>
+        <SetupScreen
+          job={job ?? { title: 'Loading...', companyName: '' }}
+          mode={mode}
+          jobText={jobText}
+          onJobTextChange={setJobText}
+          config={config}
+          onConfigChange={handleConfigChange}
+          onStart={handleStartAudition}
+          isRequestingPermission={phase === 'requesting-permission'}
+          micError={sessionError}
+          hasApiKey={!!settings.geminiApiKey}
+          onOpenSettings={() => setShowSettings(true)}
+        />
+        {showSettings && (
+          <AuditionSettingsModal
+            current={settings}
+            onSave={saveSettings}
+            onClose={() => setShowSettings(false)}
+            onRequestMic={() => audioCapture.requestPermission()}
+            onDiagnoseMic={() => audioCapture.diagnoseMic()}
+          />
+        )}
+      </>
     );
   }
 
