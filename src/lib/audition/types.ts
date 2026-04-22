@@ -6,15 +6,15 @@ export type AuditionPhase =
   | 'ending'
   | 'results';
 
-export type InterviewType = 'technical' | 'behavioral' | 'mixed';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type AIStatus = 'idle' | 'speaking' | 'listening' | 'processing';
 export type MediaMode = 'voice' | 'video';
 
 export interface AuditionConfig {
-  interviewType: InterviewType;
   difficulty: Difficulty;
   mediaMode: MediaMode;
+  focus?: string;
+  resume?: string;
 }
 
 export interface TranscriptEntry {
@@ -26,6 +26,29 @@ export interface TranscriptEntry {
 }
 
 export interface AuditionResults {
+  transcript: TranscriptEntry[];
+  score: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
+  durationSeconds: number;
+}
+
+export interface AuditionPreset {
+  id: string;
+  name: string;
+  config: AuditionConfig;
+}
+
+export interface AuditionSession {
+  id: string;
+  userId: string;
+  date: string;
+  mode: 'freeform' | 'job';
+  jobTitle: string;
+  companyName: string;
+  jobId?: string;
+  config: AuditionConfig & { voiceName?: string };
   transcript: TranscriptEntry[];
   score: number;
   feedback: string;

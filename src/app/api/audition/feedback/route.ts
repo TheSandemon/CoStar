@@ -1,14 +1,28 @@
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 import type { TranscriptEntry } from '@/lib/audition/types';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
+
+function getAdminApp() {
+  if (getApps().length > 0) return getApps()[0];
+  return initializeApp({
+    credential: cert({
+      projectId: process.env.FIREBASE_PROJECT_ID,
+      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    }),
+  });
+}
 
 interface FeedbackRequest {
   transcript: TranscriptEntry[];
   jobTitle: string;
   companyName: string;
-  interviewType: string;
+  focus?: string;
   difficulty: string;
 }
 
@@ -21,14 +35,33 @@ interface FeedbackResult {
 
 export async function POST(req: NextRequest) {
   try {
+    // Resolve API key: prefer user's Firestore settings over env var
+    const authHeader = req.headers.get('Authorization');
+    let apiKey = process.env.GEMINI_API_KEY;
+    let feedbackModel: string = GEMINI_CONFIG.feedbackModel;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const app = getAdminApp();
+        const { uid } = await getAuth(app).verifyIdToken(authHeader.slice(7));
+        const snap = await getFirestore(app).doc(`auditionSettings/${uid}`).get();
+        if (snap.exists) {
+          const data = snap.data() as Record<string, string>;
+          if (data.geminiApiKey) apiKey = data.geminiApiKey;
+          if (data.feedbackModel) feedbackModel = data.feedbackModel;
+        }
+      } catch {
+        // If token verification fails, fall through to env var
+      }
+    }
+
     const body = (await req.json()) as FeedbackRequest;
-    const { transcript, jobTitle, companyName, interviewType, difficulty } = body;
+    const { transcript, jobTitle, companyName, focus, difficulty } = body;
 
     if (!transcript?.length) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
     }
@@ -38,7 +71,8 @@ export async function POST(req: NextRequest) {
       .map((e) => `${e.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${e.text}`)
       .join('\n');
 
-    const prompt = `You are an expert hiring manager reviewing a ${difficulty} ${interviewType} interview for the role of "${jobTitle}" at "${companyName}".
+    const focusLine = focus?.trim() ? ` focused on ${focus.trim()}` : '';
+    const prompt = `You are an expert hiring manager reviewing a ${difficulty} interview${focusLine} for the role of "${jobTitle}"${companyName ? ` at "${companyName}"` : ''}.
 
 INTERVIEW TRANSCRIPT:
 ${transcriptText}
@@ -54,7 +88,7 @@ Evaluate the candidate's performance and respond with ONLY valid JSON in this ex
 Base the score on: communication clarity, technical accuracy (if applicable), relevance of answers, and confidence. Be honest and constructive.`;
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_CONFIG.feedbackModel}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${feedbackModel}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

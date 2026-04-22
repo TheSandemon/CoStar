@@ -1,6 +1,6 @@
 'use client';
 
-import { MicOff, Mic, PhoneOff } from 'lucide-react';
+import { MicOff, Mic, PhoneOff, X } from 'lucide-react';
 import type { AIStatus } from '@/lib/audition/types';
 import type { TranscriptEntry } from '@/lib/audition/types';
 import { AudioVisualizer } from './AudioVisualizer';
@@ -10,6 +10,7 @@ import { VideoPreview } from './VideoPreview';
 interface InterviewScreenProps {
   jobTitle: string;
   companyName: string;
+  voiceName: string;
   aiStatus: AIStatus;
   isConnecting: boolean;
   isMuted: boolean;
@@ -17,25 +18,13 @@ interface InterviewScreenProps {
   analyserRef: React.MutableRefObject<AnalyserNode | null>;
   onToggleMute: () => void;
   onEndInterview: () => void;
+  onCancelInterview: () => void;
 }
-
-const STATUS_LABELS: Record<AIStatus, string> = {
-  idle: 'Connecting...',
-  processing: 'Thinking...',
-  speaking: 'Alex is speaking',
-  listening: 'Your turn',
-};
-
-const STATUS_COLORS: Record<AIStatus, string> = {
-  idle: 'text-slate-400',
-  processing: 'text-amber-400',
-  speaking: 'text-violet-300',
-  listening: 'text-emerald-400',
-};
 
 export function InterviewScreen({
   jobTitle,
   companyName,
+  voiceName,
   aiStatus,
   isConnecting,
   isMuted,
@@ -43,7 +32,24 @@ export function InterviewScreen({
   analyserRef,
   onToggleMute,
   onEndInterview,
+  onCancelInterview,
 }: InterviewScreenProps) {
+  const statusLabel: Record<AIStatus, string> = {
+    idle: 'Connecting...',
+    processing: 'Thinking...',
+    speaking: `${voiceName} is speaking`,
+    listening: 'Your turn',
+  };
+
+  const statusColor: Record<AIStatus, string> = {
+    idle: 'text-slate-400',
+    processing: 'text-amber-400',
+    speaking: 'text-violet-300',
+    listening: 'text-emerald-400',
+  };
+
+  const initial = voiceName.charAt(0).toUpperCase();
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col">
       {/* Top bar */}
@@ -65,8 +71,8 @@ export function InterviewScreen({
                   aiStatus === 'listening' ? 'bg-emerald-400 animate-pulse' : 'bg-violet-400'
                 }`}
               />
-              <span className={`text-xs font-medium ${STATUS_COLORS[aiStatus]}`}>
-                {STATUS_LABELS[aiStatus]}
+              <span className={`text-xs font-medium ${statusColor[aiStatus]}`}>
+                {statusLabel[aiStatus]}
               </span>
             </div>
           )}
@@ -78,9 +84,9 @@ export function InterviewScreen({
         {/* AI Visualizer */}
         <div className="flex flex-col items-center gap-3">
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-700 to-purple-900 border border-violet-500/30 flex items-center justify-center shadow-lg shadow-violet-900/30">
-            <span className="text-2xl font-bold text-violet-200">A</span>
+            <span className="text-2xl font-bold text-violet-200">{initial}</span>
           </div>
-          <p className="text-slate-400 text-sm font-medium">Alex · AI Interviewer</p>
+          <p className="text-slate-400 text-sm font-medium">{voiceName} · AI Interviewer</p>
           <AudioVisualizer analyserRef={analyserRef} aiStatus={aiStatus} />
         </div>
 
@@ -97,7 +103,7 @@ export function InterviewScreen({
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 px-5 py-5 border-t border-slate-800/60">
+      <div className="flex items-center justify-center gap-3 px-5 py-5 border-t border-slate-800/60">
         <button
           onClick={onToggleMute}
           className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all ${
@@ -116,6 +122,14 @@ export function InterviewScreen({
         >
           <PhoneOff className="w-4 h-4" />
           End Interview
+        </button>
+
+        <button
+          onClick={onCancelInterview}
+          className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-slate-800/60 border border-slate-700/50 text-slate-500 hover:text-slate-300 hover:border-slate-600 text-sm transition-all"
+          title="Cancel without saving"
+        >
+          <X className="w-4 h-4" />
         </button>
       </div>
     </div>

@@ -2,6 +2,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
 import { getAuth } from 'firebase-admin/auth';
 
@@ -26,17 +27,26 @@ export async function POST(req: NextRequest) {
     const idToken = authHeader.slice(7);
 
     const app = getAdminApp();
-    await getAuth(app).verifyIdToken(idToken);
+    const { uid } = await getAuth(app).verifyIdToken(idToken);
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Read user's Gemini settings from Firestore; fall back to env var
+    const settingsSnap = await getFirestore(app).doc(`auditionSettings/${uid}`).get();
+    const userSettings = settingsSnap.exists ? (settingsSnap.data() as Record<string, string>) : {};
+
+    const apiKey = userSettings.geminiApiKey || process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      return NextResponse.json(
+        { error: 'No Gemini API key configured. Open Audition settings to add one.' },
+        { status: 500 },
+      );
     }
+
+    const liveApiHost = userSettings.liveApiHost || 'generativelanguage.googleapis.com';
 
     // Mint ephemeral token via Gemini REST API
     const expireTime = new Date(Date.now() + GEMINI_CONFIG.tokenTtlMs).toISOString();
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1alpha/ephemeralTokens?key=${apiKey}`,
+      `https://${liveApiHost}/v1alpha/ephemeralTokens?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
