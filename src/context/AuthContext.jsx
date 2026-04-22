@@ -59,6 +59,7 @@ export const AuthProvider = ({ children }) => {
                 displayName: currentUser.displayName,
                 photoURL: currentUser.photoURL,
                 role: 'user', // Default role
+                getIdToken: () => currentUser.getIdToken(),
             });
             setLoading(false);
 
