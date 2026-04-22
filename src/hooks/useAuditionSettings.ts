@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
+import type { AuditionPreset } from '@/lib/audition/types';
 
 export interface AuditionSettings {
   geminiApiKey: string;
@@ -11,6 +12,7 @@ export interface AuditionSettings {
   liveModel: string;
   feedbackModel: string;
   voiceName: string;
+  presets: AuditionPreset[];
 }
 
 export const AUDITION_SETTINGS_DEFAULTS: AuditionSettings = {
@@ -19,6 +21,7 @@ export const AUDITION_SETTINGS_DEFAULTS: AuditionSettings = {
   liveModel: GEMINI_CONFIG.liveModel,
   feedbackModel: GEMINI_CONFIG.feedbackModel,
   voiceName: GEMINI_CONFIG.voiceName,
+  presets: [],
 };
 
 export function useAuditionSettings(uid: string | null) {
@@ -31,7 +34,12 @@ export function useAuditionSettings(uid: string | null) {
     getDoc(doc(db, 'auditionSettings', uid))
       .then((snap) => {
         if (snap.exists()) {
-          setSettings({ ...AUDITION_SETTINGS_DEFAULTS, ...(snap.data() as Partial<AuditionSettings>) });
+          const data = snap.data() as Partial<AuditionSettings>;
+          setSettings({
+            ...AUDITION_SETTINGS_DEFAULTS,
+            ...data,
+            presets: data.presets ?? [],
+          });
         }
       })
       .finally(() => setLoading(false));

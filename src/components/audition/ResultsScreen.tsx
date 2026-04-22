@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { CheckCircle, TrendingUp, Star, ChevronLeft, RefreshCw } from 'lucide-react';
 import type { AuditionResults } from '@/lib/audition/types';
 import { TranscriptPanel } from './TranscriptPanel';
+import { ScoreRing } from './ScoreRing';
 
 interface ResultsScreenProps {
   results: AuditionResults;
@@ -11,36 +12,6 @@ interface ResultsScreenProps {
   companyName: string;
   jobId: string;
   onTryAgain: () => void;
-}
-
-function ScoreRing({ score }: { score: number }) {
-  const circumference = 2 * Math.PI * 36;
-  const dashOffset = circumference * (1 - score / 100);
-  const color = score >= 75 ? '#22c55e' : score >= 50 ? '#f59e0b' : '#ef4444';
-
-  return (
-    <div className="relative flex items-center justify-center w-28 h-28">
-      <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 80 80">
-        <circle cx="40" cy="40" r="36" fill="none" stroke="rgb(51 65 85)" strokeWidth="5" />
-        <circle
-          cx="40"
-          cy="40"
-          r="36"
-          fill="none"
-          stroke={color}
-          strokeWidth="5"
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          style={{ transition: 'stroke-dashoffset 1s ease-out' }}
-        />
-      </svg>
-      <div className="text-center">
-        <span className="text-3xl font-bold text-white">{score}</span>
-        <span className="block text-xs text-slate-400">/ 100</span>
-      </div>
-    </div>
-  );
 }
 
 function formatDuration(seconds: number) {

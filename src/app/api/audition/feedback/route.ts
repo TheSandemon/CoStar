@@ -22,7 +22,7 @@ interface FeedbackRequest {
   transcript: TranscriptEntry[];
   jobTitle: string;
   companyName: string;
-  interviewType: string;
+  focus?: string;
   difficulty: string;
 }
 
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Resolve API key: prefer user's Firestore settings over env var
     const authHeader = req.headers.get('Authorization');
     let apiKey = process.env.GEMINI_API_KEY;
-    let feedbackModel = GEMINI_CONFIG.feedbackModel;
+    let feedbackModel: string = GEMINI_CONFIG.feedbackModel;
 
     if (authHeader?.startsWith('Bearer ')) {
       try {
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = (await req.json()) as FeedbackRequest;
-    const { transcript, jobTitle, companyName, interviewType, difficulty } = body;
+    const { transcript, jobTitle, companyName, focus, difficulty } = body;
 
     if (!transcript?.length) {
       return NextResponse.json({ error: 'No transcript provided' }, { status: 400 });
@@ -71,7 +71,8 @@ export async function POST(req: NextRequest) {
       .map((e) => `${e.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${e.text}`)
       .join('\n');
 
-    const prompt = `You are an expert hiring manager reviewing a ${difficulty} ${interviewType} interview for the role of "${jobTitle}" at "${companyName}".
+    const focusLine = focus?.trim() ? ` focused on ${focus.trim()}` : '';
+    const prompt = `You are an expert hiring manager reviewing a ${difficulty} interview${focusLine} for the role of "${jobTitle}"${companyName ? ` at "${companyName}"` : ''}.
 
 INTERVIEW TRANSCRIPT:
 ${transcriptText}
