@@ -131,7 +131,10 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
         headers: { Authorization: `Bearer ${idToken}` },
       });
 
-      if (!res.ok) throw new Error('Failed to get session token');
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to get session token');
+      }
       const { token } = (await res.json()) as { token: string };
 
       const voiceName = settings.voiceName || 'Alex';
