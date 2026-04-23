@@ -139,10 +139,11 @@ export function useGeminiLiveSession({
         const model = overrides?.liveModel ?? credentials.liveModel ?? GEMINI_CONFIG.liveModel;
         const voice = overrides?.voiceName ?? GEMINI_CONFIG.voiceName;
 
-        // Use v1beta BidiGenerateContent with API key directly.
-        // The ephemeral token path (v1alpha/BidiGenerateContentConstrained) rejects
-        // gemini-3.1-flash-live-preview with 1007 "token-based requests cannot use project-scoped features".
-        const url = `wss://${host}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${credentials.key}`;
+        // gemini-3.1-flash-live-preview only exists in v1alpha — v1beta returns 1008 "not found".
+        // Direct ?key= auth works fine on v1alpha BidiGenerateContent (non-Constrained).
+        // Do NOT use BidiGenerateContentConstrained — that requires ephemeral tokens which
+        // fail with 1007 "project-scoped" for this model.
+        const url = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${credentials.key}`;
         const ws = new WebSocket(url);
         wsRef.current = ws;
 
