@@ -31,15 +31,17 @@ The ephemeral token approach (`BidiGenerateContentConstrained` / `v1alpha` / `ac
 `gemini-3.1-flash-live-preview` is treated as a project-scoped model and **cannot be accessed via ephemeral tokens**.
 
 **The working approach** (confirmed from the Audition reference project at `C:\Users\Sand\Desktop\Coding\Audition`):
-- Use **`v1beta`** API version
+- Use **`v1alpha`** API version
 - Use **`BidiGenerateContent`** (no `Constrained` suffix)
 - Authenticate with **`?key=`** — pass the API key directly in the URL
 
 ```
-wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={API_KEY}
+wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key={API_KEY}
 ```
 
-**Security**: The API key is never exposed in client-side source. The frontend calls `/api/audition/token` (Firebase-auth-gated), which reads the key from Firestore/env and returns it at runtime only to authenticated users.
+**Why not v1beta?** `gemini-3.1-flash-live-preview` does not exist in `v1beta` — it returns `1008: not found for API version v1beta`.
+
+**Why not BidiGenerateContentConstrained?** That endpoint requires ephemeral tokens (`access_token`), which fail with `1007: token-based requests cannot use project-scoped features` for this model.
 
 ### 2. Setup Message Format
 
@@ -168,7 +170,7 @@ Stored at `auditionSettings/{uid}`:
 
 ### API Routes
 
-- `POST /api/audition/token` — Mints an ephemeral Gemini token. Requires Firebase `Authorization: Bearer <idToken>` header. Reads user API key from Firestore. Returns `{ token: string }`.
+- `POST /api/audition/token` — Firebase-auth-gated. Reads the Gemini API key from Firestore (per-user) or the `GEMINI_API_KEY` env var (fallback). Returns `{ key, host, liveModel }` — no ephemeral token minting.
 - `POST /api/audition/feedback` — Generates post-interview score/feedback via standard Gemini REST API.
 
 ---
@@ -177,7 +179,17 @@ Stored at `auditionSettings/{uid}`:
 
 - **Platform**: Vercel
 - **Environment variables required**:
-  - `GEMINI_API_KEY` — fallback API key
+  - `GEMINI_API_KEY` — fallback Gemini API key used when the user hasn't set their own in Settings
   - `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — Firebase Admin SDK credentials
   - Firebase client config vars (`NEXT_PUBLIC_FIREBASE_*`)
 - `FIREBASE_PRIVATE_KEY` must have `\n` replaced with actual newlines in Vercel (the route handler does `.replace(/\\n/g, '\n')`)
+
+### ⚠️ Local Dev Note: `.env.local` Has Placeholder Values
+
+The `.env.local` file committed to this repo contains **placeholder values only** (e.g. `GEMINI_API_KEY=your_gemini_api_key_here`). The real secrets live exclusively in **Vercel's environment variable dashboard** and are never committed to git.
+
+This means:
+- Running `npm run dev` locally will work for UI/layout changes, but anything that hits a Gemini or Firebase API will fail with auth errors.
+- **Do not try to debug API connectivity locally** using `.env.local` without first filling in real keys.
+- To test the full audition flow, deploy to Vercel (preview or production) where the real env vars are configured.
+- If you need to run locally with real keys, copy the values from Vercel's dashboard into `.env.local` temporarily. **Never commit them.**
