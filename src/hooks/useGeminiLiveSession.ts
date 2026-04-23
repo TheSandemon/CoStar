@@ -144,6 +144,8 @@ export function useGeminiLiveSession({
         // Do NOT use BidiGenerateContentConstrained — that requires ephemeral tokens which
         // fail with 1007 "project-scoped" for this model.
         const url = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${credentials.key}`;
+        const urlSafe = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=REDACTED`;
+        console.log('[GeminiLive] Connecting to:', urlSafe, '| model:', model);
         const ws = new WebSocket(url);
         wsRef.current = ws;
 
@@ -197,7 +199,7 @@ export function useGeminiLiveSession({
           if (wsRef.current === ws) wsRef.current = null;
           
           if (!isOpened) {
-            reject(new Error(`Connection closed before opening. Code: ${event.code}. Reason: ${event.reason}`));
+            reject(new Error(`Connection closed before opening. Code: ${event.code}. Reason: ${event.reason} | URL: ${urlSafe} | model: ${model}`));
           } else if (event.code !== 1000 && event.code !== 1005) {
             callbacksRef.current.onError(`Connection lost. Code: ${event.code}. Reason: ${event.reason}`);
           }
