@@ -13,7 +13,7 @@ import type {
 } from '@/lib/audition/types';
 import type { JobData } from '@/lib/jobs';
 
-import { useGeminiLiveSession } from '@/hooks/useGeminiLiveSession';
+import { useGeminiLiveSession, GeminiSessionOverrides, GeminiSessionCredentials } from '@/hooks/useGeminiLiveSession';
 import { useAudioCapture } from '@/hooks/useAudioCapture';
 import { useAudioPlayback } from '@/hooks/useAudioPlayback';
 import { useTranscript } from '@/hooks/useTranscript';
@@ -135,7 +135,9 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to get session token');
       }
-      const { token } = (await res.json()) as { token: string };
+      const { key, host, liveModel: serverLiveModel } = (await res.json()) as GeminiSessionCredentials;
+
+      const credentials: GeminiSessionCredentials = { key, host, liveModel: serverLiveModel };
 
       const voiceName = settings.voiceName || 'Alex';
       const systemPrompt =
@@ -143,7 +145,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
           ? buildSystemPromptFromText(jobText, config, voiceName)
           : buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config, voiceName);
 
-      await connect(token, systemPrompt, config, {
+      await connect(credentials, systemPrompt, config, {
         liveModel: settings.liveModel || undefined,
         liveApiHost: settings.liveApiHost || undefined,
         voiceName: settings.voiceName || undefined,

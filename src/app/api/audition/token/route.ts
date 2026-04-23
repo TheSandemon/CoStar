@@ -3,9 +3,8 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import { GEMINI_CONFIG } from '@/lib/audition/config';
 import { getAuth } from 'firebase-admin/auth';
-import { GoogleGenAI } from '@google/genai';
+
 function getAdminApp() {
   if (getApps().length > 0) return getApps()[0];
   return initializeApp({
@@ -42,28 +41,13 @@ export async function POST(req: NextRequest) {
     }
 
     const liveApiHost = userSettings.liveApiHost || 'generativelanguage.googleapis.com';
+    const liveModel = userSettings.liveModel || undefined;
 
-    // Mint ephemeral token via Gemini GenAI SDK
-    const ai = new GoogleGenAI({ apiKey });
-    const expireTime = new Date(Date.now() + GEMINI_CONFIG.tokenTtlMs).toISOString();
-
-    try {
-      const token = await ai.authTokens.create({
-        config: {
-          uses: 1,
-          expireTime: expireTime,
-          newSessionExpireTime: new Date(Date.now() + GEMINI_CONFIG.sessionTtlMs).toISOString(),
-          httpOptions: { 
-            apiVersion: 'v1alpha',
-            baseUrl: `https://${liveApiHost}` 
-          },
-        },
-      });
-      return NextResponse.json({ token: token.name, expiresAt: expireTime });
-    } catch (err: any) {
-      console.error('[audition/token] Gemini token error:', err);
-      return NextResponse.json({ error: 'Failed to mint token' }, { status: 502 });
-    }
+    // Return the key + host so the client can connect directly via v1beta BidiGenerateContent.
+    // The ephemeral token approach (BidiGenerateContentConstrained / v1alpha) does not support
+    // gemini-3.1-flash-live-preview — it returns 1007 "token-based requests cannot use
+    // project-scoped features". Firebase auth above ensures only authenticated users get the key.
+    return NextResponse.json({ key: apiKey, host: liveApiHost, liveModel });
   } catch (err) {
     console.error('[audition/token]', err);
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });

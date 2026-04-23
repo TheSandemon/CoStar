@@ -19,6 +19,12 @@ export interface GeminiSessionOverrides {
   voiceName?: string;
 }
 
+export interface GeminiSessionCredentials {
+  key: string;
+  host: string;
+  liveModel?: string;
+}
+
 export function useGeminiLiveSession({
   onAudioChunk,
   onAITranscript,
@@ -121,7 +127,7 @@ export function useGeminiLiveSession({
   }, []);
 
   const connect = useCallback(
-    (token: string, systemPrompt: string, config: AuditionConfig, overrides?: GeminiSessionOverrides): Promise<void> => {
+    (credentials: GeminiSessionCredentials, systemPrompt: string, config: AuditionConfig, overrides?: GeminiSessionOverrides): Promise<void> => {
       return new Promise((resolve, reject) => {
         let isOpened = false;
 
@@ -129,11 +135,14 @@ export function useGeminiLiveSession({
           wsRef.current.close();
         }
 
-        const host = overrides?.liveApiHost ?? GEMINI_CONFIG.liveApiHost;
-        const model = overrides?.liveModel ?? GEMINI_CONFIG.liveModel;
+        const host = overrides?.liveApiHost ?? credentials.host;
+        const model = overrides?.liveModel ?? credentials.liveModel ?? GEMINI_CONFIG.liveModel;
         const voice = overrides?.voiceName ?? GEMINI_CONFIG.voiceName;
 
-        const url = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token=${token}`;
+        // Use v1beta BidiGenerateContent with API key directly.
+        // The ephemeral token path (v1alpha/BidiGenerateContentConstrained) rejects
+        // gemini-3.1-flash-live-preview with 1007 "token-based requests cannot use project-scoped features".
+        const url = `wss://${host}/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${credentials.key}`;
         const ws = new WebSocket(url);
         wsRef.current = ws;
 

@@ -19,24 +19,31 @@ CoStar is a Next.js (App Router) web application that helps users practice job i
 
 > ⚠️ This section documents battle-tested fixes. Do NOT revert these without strong evidence from the official docs.
 
-### 1. Correct Endpoint for Ephemeral Tokens
+### 1. DO NOT Use Ephemeral Tokens With gemini-3.1-flash-live-preview
 
-When using **ephemeral tokens**, you MUST use the `BidiGenerateContentConstrained` endpoint with `access_token`:
+**This is the root cause of all 1007 errors in this project.**
+
+The ephemeral token approach (`BidiGenerateContentConstrained` / `v1alpha` / `access_token`) returns:
+```
+1007 — token-based requests cannot use project-scoped features such as tuned models
+```
+
+`gemini-3.1-flash-live-preview` is treated as a project-scoped model and **cannot be accessed via ephemeral tokens**.
+
+**The working approach** (confirmed from the Audition reference project at `C:\Users\Sand\Desktop\Coding\Audition`):
+- Use **`v1beta`** API version
+- Use **`BidiGenerateContent`** (no `Constrained` suffix)
+- Authenticate with **`?key=`** — pass the API key directly in the URL
 
 ```
-wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token={token}
+wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={API_KEY}
 ```
 
-**Wrong** (causes 1008/1007 close codes):
-- `BidiGenerateContent?bearer_token=...`
-- `BidiGenerateContent?access_token=...`
-- `BidiGenerateContentConstrained?bearer_token=...`
+**Security**: The API key is never exposed in client-side source. The frontend calls `/api/audition/token` (Firebase-auth-gated), which reads the key from Firestore/env and returns it at runtime only to authenticated users.
 
-The `Constrained` suffix is mandatory for ephemeral token connections. The `access_token` query param is mandatory (not `bearer_token`, not `key`).
+### 2. Setup Message Format
 
-### 2. Setup Message Top-Level Key
-
-The first message sent after the WebSocket opens must use `setup` as the top-level key:
+The first message sent after open must use `setup` as the top-level key:
 
 ```json
 {
@@ -57,12 +64,10 @@ The first message sent after the WebSocket opens must use `setup` as the top-lev
 }
 ```
 
-**Wrong** (causes 1007 Invalid frame payload error):
-- `{ "config": { ... } }` — the get-started WebSocket docs incorrectly show `config`; the actual working format confirmed by the official [gemini-live-api-examples](https://github.com/google-gemini/gemini-live-api-examples) repo uses `setup`
+**Wrong** (causes 1007):
+- `{ "config": { ... } }` — incorrect top-level key
 
 ### 3. All WebSocket Message Keys Must Be camelCase
-
-The Gemini Live API uses **camelCase** for all JSON field names. Do NOT use snake_case.
 
 | ❌ Wrong (snake_case) | ✅ Correct (camelCase) |
 |---|---|
@@ -84,58 +89,44 @@ The Gemini Live API uses **camelCase** for all JSON field names. Do NOT use snak
 {
   "realtimeInput": {
     "audio": {
-      "data": "<base64-encoded PCM>",
-      "mimeType": "audio/pcm;rate=16000"
+      "mimeType": "audio/pcm;rate=16000",
+      "data": "<base64-encoded PCM>"
     }
   }
 }
 ```
 
-### 5. Correct Live API Model Names
+### 5. Correct Live API Model Name
 
-Live API (WebSocket/streaming) requires the `-live-` model variant:
+```
+models/gemini-3.1-flash-live-preview
+```
 
-| ✅ Correct | ❌ Wrong |
-|---|---|
-| `models/gemini-3.1-flash-live-preview` | `models/gemini-3.1-flash-lite-preview` |
-
-The model name must always include the `models/` prefix in the setup config.
+Must include the `models/` prefix. The `-live-` variant is required for the Live API.
 
 ### 6. `inputAudioTranscription` Must Be an Empty Object
-
-Do NOT pass a `model` field inside `inputAudioTranscription`. The server rejects it:
 
 ```json
 "inputAudioTranscription": {}
 ```
 
-**Wrong**:
-```json
-"inputAudioTranscription": { "model": "models/gemini-3.1-flash-live-preview" }
-```
+Do NOT pass a `model` field inside it — the server rejects it.
 
-### 7. Ephemeral Token Minting (Backend)
+### 7. `/api/audition/token` Route — What It Does
 
-The backend mints tokens via `@google/genai` SDK (`ai.authTokens.create`). The token's `.name` field (e.g. `auth_tokens/abc123`) is what gets passed to the frontend and used as `access_token` in the WebSocket URL. The token is only valid for the `v1alpha` API version.
-
-```ts
-const token = await ai.authTokens.create({ config: { uses: 1, expireTime, ... } });
-// token.name is the value to pass to the client
-```
+The route is Firebase-auth-gated and returns `{ key, host, liveModel }`. The client uses these to build the WebSocket URL. No ephemeral token minting occurs.
 
 ### 8. WebSocket Close Codes Reference
 
 | Code | Meaning in this context |
 |---|---|
-| `1007` | Invalid frame payload — usually means the setup JSON message has wrong keys/structure |
-| `1008` | Policy violation — usually means wrong endpoint, wrong auth parameter, or unsupported model |
+| `1007` | Invalid frame payload — wrong setup JSON structure, OR model not compatible with auth method |
+| `1008` | Policy violation — wrong endpoint or unsupported auth parameter |
 | `1000` / `1005` | Normal/clean close — not an error |
 
 ### 9. `connect()` Must Be a Promise That Awaits `onopen`
 
-The `connect()` function in `useGeminiLiveSession.ts` returns a `Promise<void>` that **only resolves after `ws.onopen` fires**. This is critical — without this, the app transitions to the `interviewing` phase before the WebSocket is actually open, causing a silent hang.
-
-If `onerror` or `onclose` fires before `onopen`, the promise must **reject** (not just call an error callback), so the caller can properly handle it and reset the UI phase.
+The `connect()` function in `useGeminiLiveSession.ts` returns a `Promise<void>` that **only resolves after `ws.onopen` fires**. If `onerror` or `onclose` fires before `onopen`, the promise must **reject** so the caller can reset the UI phase.
 
 ---
 
