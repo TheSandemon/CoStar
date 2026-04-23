@@ -187,9 +187,9 @@ export function useGeminiLiveSession({
           if (wsRef.current === ws) wsRef.current = null;
           
           if (!isOpened) {
-            reject(new Error(`Connection closed before opening. Code: ${event.code}`));
+            reject(new Error(`Connection closed before opening. Code: ${event.code}. Reason: ${event.reason}`));
           } else if (event.code !== 1000 && event.code !== 1005) {
-            callbacksRef.current.onError(`Connection lost. Code: ${event.code}`);
+            callbacksRef.current.onError(`Connection lost. Code: ${event.code}. Reason: ${event.reason}`);
           }
         };
       });
