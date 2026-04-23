@@ -146,21 +146,21 @@ export function useGeminiLiveSession({
           const setup = {
             setup: {
               model,
-              system_instruction: {
+              systemInstruction: {
                 parts: [{ text: systemPrompt }],
               },
-              generation_config: {
-                response_modalities: GEMINI_CONFIG.responseModalities,
-                speech_config: {
-                  voice_config: {
-                    prebuilt_voice_config: {
-                      voice_name: voice,
+              generationConfig: {
+                responseModalities: GEMINI_CONFIG.responseModalities,
+                speechConfig: {
+                  voiceConfig: {
+                    prebuiltVoiceConfig: {
+                      voiceName: voice,
                     },
                   },
                 },
               },
-              input_audio_transcription: {},
-              output_audio_transcription: {},
+              inputAudioTranscription: { model },
+              outputAudioTranscription: {},
             },
           };
           ws.send(JSON.stringify(setup));
