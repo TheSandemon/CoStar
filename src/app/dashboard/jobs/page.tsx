@@ -45,10 +45,13 @@ export default function EmployerJobsPage() {
     country: '',
   });
 
-  // Redirect if not logged in
+  // Redirect if not logged in or not a Business account
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/sign-in');
+    }
+    if (!authLoading && user && user.accountType && user.accountType !== 'business') {
+      router.push('/dashboard');
     }
   }, [user, authLoading, router]);
 

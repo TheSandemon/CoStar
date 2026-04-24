@@ -2,20 +2,53 @@
 
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import NavHeader from "@/components/NavHeader";
+import {
+  buildProfileChecklist,
+  calculateProfileComplete,
+  getUserProfile,
+  type UserProfile,
+} from "@/lib/profile";
 import { User, Building2, Briefcase, Settings, Star, CheckCircle2, Github, Linkedin } from "lucide-react";
 
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const [profile, setProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/sign-in");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user) {
+        return;
+      }
+
+      try {
+        const loadedProfile = await getUserProfile(user.uid);
+        setProfile(loadedProfile);
+      } catch (err) {
+        console.error("Failed to load profile:", err);
+      }
+    };
+
+    if (!loading) {
+      loadProfile();
+    }
+  }, [user, loading]);
+
+  const profileChecklist = useMemo(
+    () => buildProfileChecklist(profile ?? user ?? null),
+    [profile, user]
+  );
+  const profileComplete = calculateProfileComplete(profile ?? user ?? null);
+  const connectedAccounts = profile?.socialConnections?.filter((connection) => connection.connected).length ?? 0;
 
   if (loading) {
     return (
@@ -38,20 +71,22 @@ export default function DashboardPage() {
           <h1 className="text-3xl font-bold text-white mb-2">
             Welcome back, {user.displayName || "there"}!
           </h1>
-          <p className="text-slate-400">Here's what's happening with your profile</p>
+          <p className="text-slate-400">
+            {profile?.headline || "Here's what's happening with your profile"}
+          </p>
         </div>
 
         {/* Stats Grid */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           {[
-            { label: "Profile Views", value: "0", icon: User, color: "amber" },
-            { label: "Job Matches", value: "0", icon: Briefcase, color: "blue" },
-            { label: "Verified Accounts", value: "0", icon: CheckCircle2, color: "green" },
-            { label: "Profile Strength", value: "25%", icon: Star, color: "purple" },
+            { label: "Profile Views", value: "0", icon: User, bgClass: "bg-amber-500/20", iconClass: "text-amber-400" },
+            { label: "Job Matches", value: "0", icon: Briefcase, bgClass: "bg-blue-500/20", iconClass: "text-blue-400" },
+            { label: "Verified Accounts", value: String(connectedAccounts), icon: CheckCircle2, bgClass: "bg-green-500/20", iconClass: "text-green-400" },
+            { label: "Profile Strength", value: `${profileComplete}%`, icon: Star, bgClass: "bg-purple-500/20", iconClass: "text-purple-400" },
           ].map((stat) => (
             <div key={stat.label} className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
-              <div className={`w-10 h-10 bg-${stat.color}-500/20 rounded-lg flex items-center justify-center mb-4`}>
-                <stat.icon className={`text-${stat.color}-400`} size={20} />
+              <div className={`w-10 h-10 ${stat.bgClass} rounded-lg flex items-center justify-center mb-4`}>
+                <stat.icon className={stat.iconClass} size={20} />
               </div>
               <div className="text-2xl font-bold text-white mb-1">{stat.value}</div>
               <div className="text-slate-400 text-sm">{stat.label}</div>
@@ -65,14 +100,7 @@ export default function DashboardPage() {
             <h2 className="text-xl font-bold text-white mb-6">Profile Completeness</h2>
 
             <div className="space-y-4">
-              {[
-                { label: "Basic Information", progress: 100, complete: true },
-                { label: "Account Type", progress: 0, complete: false },
-                { label: "Work Experience", progress: 0, complete: false },
-                { label: "Education", progress: 0, complete: false },
-                { label: "Social Connections", progress: 0, complete: false },
-                { label: "Work Vibe Assessment", progress: 0, complete: false },
-              ].map((item) => (
+              {profileChecklist.map((item) => (
                 <div key={item.label} className="flex items-center gap-4">
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
@@ -108,30 +136,20 @@ export default function DashboardPage() {
 
             <div className="space-y-3">
               {[
-                { icon: Briefcase, label: "Browse Jobs", color: "amber", href: "/jobs" },
-                { icon: Building2, label: "Post a Job", color: "green", href: "/dashboard/jobs" },
-                { icon: Github, label: "Connect GitHub", color: "slate", href: "#" },
-                { icon: Linkedin, label: "Import LinkedIn", color: "blue", href: "#" },
-                { icon: Settings, label: "Account Settings", color: "slate", href: "#" },
+                { icon: Briefcase, label: "Browse Jobs", iconClass: "text-amber-400", href: "/jobs" },
+                { icon: Building2, label: "Post a Job", iconClass: "text-green-400", href: "/dashboard/jobs" },
+                { icon: Github, label: "Connect GitHub", iconClass: "text-slate-400", href: "/dashboard/settings#connections" },
+                { icon: Linkedin, label: "Import LinkedIn", iconClass: "text-blue-400", href: "/dashboard/settings#connections" },
+                { icon: Settings, label: "Account Settings", iconClass: "text-slate-400", href: "/dashboard/settings" },
               ].map((action) => (
-                action.href.startsWith('/') ? (
-                  <Link
-                    key={action.label}
-                    href={action.href}
-                    className="w-full p-3 bg-slate-900 border border-white/10 rounded-lg text-white hover:border-white/30 transition-colors flex items-center gap-3"
-                  >
-                    <action.icon className={`text-${action.color}-400`} size={18} />
-                    {action.label}
-                  </Link>
-                ) : (
-                  <button
-                    key={action.label}
-                    className="w-full p-3 bg-slate-900 border border-white/10 rounded-lg text-white hover:border-white/30 transition-colors flex items-center gap-3"
-                  >
-                    <action.icon className={`text-${action.color}-400`} size={18} />
-                    {action.label}
-                  </button>
-                )
+                <Link
+                  key={action.label}
+                  href={action.href}
+                  className="w-full p-3 bg-slate-900 border border-white/10 rounded-lg text-white hover:border-white/30 transition-colors flex items-center gap-3"
+                >
+                  <action.icon className={action.iconClass} size={18} />
+                  {action.label}
+                </Link>
               ))}
             </div>
           </div>
@@ -146,7 +164,9 @@ export default function DashboardPage() {
             </Link>
           </div>
           <p className="text-slate-400 text-center py-8">
-            Complete your profile to see AI-matched job opportunities
+            {profileComplete < 80
+              ? "Complete your profile to see AI-matched job opportunities"
+              : "Job match recommendations will appear here as matching is expanded."}
           </p>
         </div>
       </main>

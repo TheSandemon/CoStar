@@ -193,3 +193,28 @@ This means:
 - **Do not try to debug API connectivity locally** using `.env.local` without first filling in real keys.
 - To test the full audition flow, deploy to Vercel (preview or production) where the real env vars are configured.
 - If you need to run locally with real keys, copy the values from Vercel's dashboard into `.env.local` temporarily. **Never commit them.**
+
+---
+
+## Messaging System
+
+The platform includes a real-time messaging system built on Firebase/Firestore that allows Job Seekers, Businesses, and Agencies to communicate.
+
+### Architecture
+
+The system uses a two-tier Firestore structure:
+1. **`conversations` collection**: Stores metadata (participant IDs, latest message snippet, unread status). Used to quickly render the Inbox list without heavy reads.
+2. **`conversations/{id}/messages` subcollection**: Stores individual message data.
+
+### Security Rules (Privacy)
+A strict `firestore.rules` configuration enforces that:
+- You must be explicitly listed in a conversation's `participantIds` array to read or write to it.
+- You cannot read messages from a conversation you are not a part of.
+*(See `firestore.rules` for exact implementation).*
+
+### Rich Text & TipTap
+To support rich text (bolding, lists, etc.) safely:
+- We use **TipTap** (headless ProseMirror wrapper) as the editor (`RichTextEditor.tsx`).
+- **What Worked:** Storing the TipTap document as a serialized JSON string in Firestore (e.g. `JSON.stringify(editor.getJSON())`) instead of raw HTML. This prevents XSS attacks and allows safe reconstruction on the receiving end.
+- **Gotchas / What Didn't Work Initially:** TipTap uses standard HTML tags internally but requires Tailwind's Typography plugin to render them beautifully. If you try to style the editor using plain Tailwind utility classes, the nested lists and bold tags won't inherit proper styling. 
+- **The Fix:** We installed `@tailwindcss/typography` and wrapped the editor and read-only message bubbles in the `prose prose-invert` classes. Always ensure the typography plugin is present in `tailwind.config.ts`.

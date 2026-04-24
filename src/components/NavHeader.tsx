@@ -42,8 +42,13 @@ export default function NavHeader() {
             <Mic className="w-3.5 h-3.5" />
             Audition
           </Link>
+          {user?.accountType === 'business' && (
+            <Link href="/dashboard/jobs" className="text-slate-300 hover:text-white transition-colors">
+              Post a Job
+            </Link>
+          )}
           <Link href="#" className="text-slate-300 hover:text-white transition-colors">Companies</Link>
-          <Link href="#" className="text-slate-300 hover:text-white transition-colors">Messages</Link>
+          <Link href="/messages" className="text-slate-300 hover:text-white transition-colors">Messages</Link>
         </nav>
 
         <div className="flex items-center gap-3">

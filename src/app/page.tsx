@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { User, Building2, ArrowRight, Github, Linkedin, CheckCircle2 } from "lucide-react";
+import { User, Building2, Users2, ArrowRight, Github, Linkedin, CheckCircle2 } from "lucide-react";
 
 export default function Home() {
   return (
@@ -47,6 +47,9 @@ export default function Home() {
               <Link href="/sign-up?type=business" className="px-8 py-4 bg-white/10 text-white rounded-xl font-bold text-lg hover:bg-white/20 transition-colors border border-white/20">
                 Start Hiring
               </Link>
+              <Link href="/sign-up?type=agency" className="px-8 py-4 bg-purple-500/20 text-purple-300 rounded-xl font-bold text-lg hover:bg-purple-500/30 transition-colors border border-purple-500/30">
+                Start an Agency
+              </Link>
             </div>
           </div>
         </div>
@@ -59,10 +62,10 @@ export default function Home() {
             Choose Your Path
           </h2>
           <p className="text-slate-400 text-center mb-16 max-w-2xl mx-auto">
-            Whether you're building your career or building a team, CoStar has you covered.
+            Whether you're building your career, building a team, or coaching the next generation of talent, CoStar has you covered.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          <div className="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto">
             {/* User Account */}
             <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-8 hover:border-amber-500/50 transition-colors group">
               <div className="w-14 h-14 bg-amber-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:bg-amber-500/30 transition-colors">
@@ -116,6 +119,34 @@ export default function Home() {
               </ul>
               <Link href="/sign-up?type=business" className="mt-8 block w-full py-3 bg-blue-500 text-white rounded-lg font-semibold text-center hover:bg-blue-400 transition-colors">
                 Start Free Trial
+              </Link>
+            </div>
+
+            {/* Agency Account */}
+            <div className="bg-slate-800/80 border border-white/10 rounded-2xl p-8 hover:border-purple-500/50 transition-colors group">
+              <div className="w-14 h-14 bg-purple-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:bg-purple-500/30 transition-colors">
+                <Users2 className="text-purple-400" size={28} />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-4">Agency</h3>
+              <p className="text-slate-400 mb-6">
+                Coach, prep, and place job seekers with AI-powered interview practice. Build connections and track candidate progress.
+              </p>
+              <ul className="space-y-3">
+                {[
+                  "AI Interview Coaching",
+                  "Job Seeker Placement",
+                  "Audition Sessions",
+                  "Connect & Network",
+                  "Performance Insights",
+                ].map((feature) => (
+                  <li key={feature} className="flex items-center gap-3 text-slate-300">
+                    <CheckCircle2 className="text-purple-400" size={18} />
+                    {feature}
+                  </li>
+                ))}
+              </ul>
+              <Link href="/sign-up?type=agency" className="mt-8 block w-full py-3 bg-purple-500 text-white rounded-lg font-semibold text-center hover:bg-purple-400 transition-colors">
+                Start Your Agency
               </Link>
             </div>
           </div>

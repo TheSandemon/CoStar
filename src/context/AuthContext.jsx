@@ -82,7 +82,7 @@ export const AuthProvider = ({ children }) => {
                         displayName: currentUser.displayName,
                         photoURL: currentUser.photoURL,
                         role: 'user',
-                        accountType: null, // 'user' or 'business'
+                        accountType: null, // 'user' | 'business' | 'agency'
                         workVibe: null,
                         socialConnections: [],
                         workExperience: [],
