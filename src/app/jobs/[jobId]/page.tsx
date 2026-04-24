@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import { getScrapedJobById, JobData } from '@/lib/jobs';
 import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
+import { useAuth } from '@/context/AuthContext';
+import { getOrCreateConversation } from '@/lib/messaging';
 import {
   ArrowLeft,
   MapPin,
@@ -20,18 +22,53 @@ import {
   CheckCircle2,
   Users,
   Mic,
+  MessageCircle
 } from 'lucide-react';
 
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
   const jobId = params.jobId as string;
+  const { user } = useAuth();
 
   const [job, setJob] = useState<JobData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [isMessaging, setIsMessaging] = useState(false);
+
+  const handleMessageRecruiter = async () => {
+    if (!user) {
+      router.push('/sign-in');
+      return;
+    }
+    
+    setIsMessaging(true);
+    try {
+      const recruiterId = job?.employerId || `mock_recruiter_${job?.companyName?.replace(/\s+/g, '') || 'unknown'}`;
+      const conversationId = await getOrCreateConversation({
+        [user.uid]: {
+          uid: user.uid,
+          name: user.displayName || 'Job Seeker',
+          avatarUrl: user.photoURL || null,
+          role: 'user'
+        },
+        [recruiterId]: {
+          uid: recruiterId,
+          name: `${job?.companyName || 'Company'} Recruiter`,
+          avatarUrl: null,
+          role: 'agency'
+        }
+      });
+      router.push(`/messages/${conversationId}`);
+    } catch (err) {
+      console.error('Failed to start conversation:', err);
+      alert('Failed to start conversation. Please try again.');
+    } finally {
+      setIsMessaging(false);
+    }
+  };
 
   useEffect(() => {
     const loadJob = async () => {
@@ -366,7 +403,7 @@ export default function JobDetailPage() {
 
                   <Link
                     href={`/jobs/${jobId}/audition`}
-                    className="w-full flex items-center gap-2 px-6 py-3 mb-1
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 mb-1
                       bg-gradient-to-r from-violet-600 to-purple-600
                       hover:from-violet-500 hover:to-purple-500
                       text-white rounded-xl font-bold transition-all border border-violet-500/30"
@@ -375,6 +412,17 @@ export default function JobDetailPage() {
                     Practice Audition
                     <span className="ml-auto text-xs font-normal opacity-70">AI Interview</span>
                   </Link>
+
+                  <button
+                    onClick={handleMessageRecruiter}
+                    disabled={isMessaging}
+                    className="w-full flex items-center justify-center gap-2 px-6 py-3 mt-3
+                      bg-slate-800 hover:bg-slate-700
+                      text-white rounded-xl font-bold transition-all border border-white/10 disabled:opacity-50"
+                  >
+                    {isMessaging ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
+                    Message Recruiter
+                  </button>
                 </>
               )}
 
