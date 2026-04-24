@@ -27,9 +27,15 @@ export function useAudioPlayback() {
   }, []);
 
   const enqueueChunk = useCallback(
-    (base64PCM: string) => {
+    async (base64PCM: string) => {
       try {
         const { ctx, analyser } = getContext();
+
+        // Resume context if suspended (browser autoplay policy)
+        if (ctx.state === 'suspended') {
+          await ctx.resume();
+        }
+
         const int16 = base64ToInt16(base64PCM);
         const float32 = int16ToFloat32(int16);
 
