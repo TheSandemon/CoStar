@@ -151,7 +151,7 @@ export function useGeminiLiveSession({
         ws.onopen = () => {
           isOpened = true;
           setIsConnected(true);
-          setAIStatus('processing');
+          setAIStatus('listening'); // Start in listening mode — reference app doesn't wait for setupComplete
 
           // Send setup message — top-level key must be "setup" per official Google sample
           const setup = {
@@ -170,11 +170,35 @@ export function useGeminiLiveSession({
                   },
                 },
               },
-              inputAudioTranscription: {},
               outputAudioTranscription: {},
+              tools: [{
+                functionDeclarations: [{
+                  name: "generate_feedback",
+                  description: "Call this tool ONLY when the user says the interview is over. It submits the final evaluation.",
+                  parameters: {
+                    type: "OBJECT",
+                    properties: {
+                      score: { type: "INTEGER", description: "Score from 0 to 100" },
+                      feedback: { type: "STRING", description: "General summary paragraph of performance" },
+                      strengths: { type: "ARRAY", items: { type: "STRING" }, description: "List of candidate's strengths" },
+                      improvements: { type: "ARRAY", items: { type: "STRING" }, description: "List of areas to improve" }
+                    },
+                    required: ["score", "feedback", "strengths", "improvements"]
+                  }
+                }]
+              }]
             },
           };
           ws.send(JSON.stringify(setup));
+
+          // Send initial clientContent to signal session is ready (reference app pattern)
+          ws.send(JSON.stringify({
+            clientContent: {
+              turns: [{ role: "user", parts: [{ text: "" }] }],
+              turnComplete: true
+            }
+          }));
+
           resolve();
         };
 
