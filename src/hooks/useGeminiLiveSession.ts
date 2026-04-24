@@ -54,14 +54,7 @@ export function useGeminiLiveSession({
     onError,
   };
 
-  const handleMessage = useCallback((event: MessageEvent) => {
-    let data: Record<string, unknown>;
-    try {
-      data = JSON.parse(event.data as string);
-    } catch {
-      return;
-    }
-
+  const handleMessage = useCallback((data: Record<string, unknown>) => {
     // Check for API errors sent via WebSocket
     if (data.error) {
       const errMsg = (data.error as any).message || JSON.stringify(data.error);
@@ -193,9 +186,22 @@ export function useGeminiLiveSession({
           resolve();
         };
 
-        ws.onmessage = (event) => {
-          console.log('[GeminiLive] ws.onmessage raw:', event.data);
-          handleMessage(event);
+        ws.onmessage = async (event) => {
+          console.log('[GeminiLive] ws.onmessage type:', typeof event.data, event.data instanceof Blob ? 'Blob' : '');
+          let data: Record<string, unknown>;
+          try {
+            if (event.data instanceof Blob) {
+              const text = await event.data.text();
+              console.log('[GeminiLive] ws.onmessage blob text length:', text.length);
+              data = JSON.parse(text);
+            } else {
+              data = JSON.parse(event.data as string);
+            }
+          } catch (e) {
+            console.log('[GeminiLive] ws.onmessage parse error:', e);
+            return;
+          }
+          handleMessage(data);
         };
 
         ws.onerror = (e) => {
