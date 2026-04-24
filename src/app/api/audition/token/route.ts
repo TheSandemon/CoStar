@@ -44,9 +44,7 @@ export async function POST(req: NextRequest) {
     const liveModel = userSettings.liveModel || undefined;
 
     // Return the key + host so the client can connect directly via v1beta BidiGenerateContent.
-    // The ephemeral token approach (BidiGenerateContentConstrained / v1alpha) does not support
-    // gemini-3.1-flash-live-preview — it returns 1007 "token-based requests cannot use
-    // project-scoped features". Firebase auth above ensures only authenticated users get the key.
+    // Firebase auth above ensures only authenticated users get the key.
     return NextResponse.json({ key: apiKey, host: liveApiHost, liveModel });
   } catch (err) {
     console.error('[audition/token]', err);

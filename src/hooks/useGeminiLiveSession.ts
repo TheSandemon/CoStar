@@ -140,9 +140,8 @@ export function useGeminiLiveSession({
         const voice = overrides?.voiceName ?? GEMINI_CONFIG.voiceName;
 
         // gemini-3.1-flash-live-preview only exists in v1alpha — v1beta returns 1008 "not found".
-        // Direct ?key= auth works fine on v1alpha BidiGenerateContent (non-Constrained).
-        // Do NOT use BidiGenerateContentConstrained — that requires ephemeral tokens which
-        // fail with 1007 "project-scoped" for this model.
+        // Do NOT use BidiGenerateContentConstrained — that requires ephemeral tokens which fail with
+        // 1007 "project-scoped" for this model.
         const url = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${credentials.key}`;
         const urlSafe = `wss://${host}/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=REDACTED`;
         console.log('[GeminiLive] Connecting to:', urlSafe, '| model:', model);
