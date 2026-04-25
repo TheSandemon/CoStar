@@ -12,9 +12,9 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type AccountType = 'user' | 'business' | 'agency';
+export type AccountType = 'user' | 'business' | 'agency' | 'admin' | 'owner';
 export type SocialPlatform = 'github' | 'linkedin' | 'email';
-export type AccountTypeSource = 'signup' | 'legacy' | 'migration';
+export type AccountTypeSource = 'signup' | 'legacy' | 'migration' | 'system';
 
 export interface SocialConnection {
   platform: SocialPlatform;
@@ -37,7 +37,7 @@ export interface UserProfile {
   emailNormalized?: string | null;
   displayName?: string | null;
   photoURL?: string | null;
-  role?: 'user' | 'business' | 'agency';
+  role?: AccountType;
   accountType?: AccountType | null;
   accountTypeLocked?: boolean;
   accountTypeLockedAt?: any;
@@ -55,6 +55,8 @@ export interface UserProfile {
   businessProfile?: BusinessProfile | null;
   agencyProfile?: AgencyProfile | null;
   profileComplete?: number;
+  moderationStatus?: 'active' | 'suspended';
+  disabled?: boolean;
   createdAt?: any;
   updatedAt?: any;
 }
@@ -103,9 +105,13 @@ export const accountTypeLabels: Record<AccountType, string> = {
   user: 'Job Seeker',
   business: 'Employer',
   agency: 'Agency',
+  admin: 'Admin',
+  owner: 'Owner',
 };
 
-export const accountTypes: AccountType[] = ['user', 'business', 'agency'];
+export const accountTypes: AccountType[] = ['user', 'business', 'agency', 'admin', 'owner'];
+export const publicSignupAccountTypes: AccountType[] = ['user', 'business', 'agency'];
+export const privilegedAccountTypes: AccountType[] = ['admin', 'owner'];
 
 export function isAccountType(value: unknown): value is AccountType {
   return typeof value === 'string' && accountTypes.includes(value as AccountType);
@@ -151,6 +157,8 @@ export function normalizeProfile(uid: string, data: Partial<UserProfile> = {}): 
     businessProfile: data.businessProfile ?? null,
     agencyProfile: data.agencyProfile ?? null,
     profileComplete: data.profileComplete ?? 0,
+    moderationStatus: data.moderationStatus ?? 'active',
+    disabled: data.disabled ?? false,
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
   };

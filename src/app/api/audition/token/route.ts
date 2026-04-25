@@ -41,11 +41,8 @@ export async function POST(req: NextRequest) {
     }
 
     const liveApiHost = userSettings.liveApiHost || 'generativelanguage.googleapis.com';
-    const liveModel = userSettings.liveModel || undefined;
 
-    // Return the key + host so the client can connect directly via v1beta BidiGenerateContent.
-    // Firebase auth above ensures only authenticated users get the key.
-    return NextResponse.json({ key: apiKey, host: liveApiHost, liveModel });
+    return NextResponse.json({ key: apiKey, host: liveApiHost });
   } catch (err) {
     console.error('[audition/token]', err);
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });

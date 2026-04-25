@@ -163,6 +163,7 @@ export function useGeminiLiveSession({
                   },
                 },
               },
+              inputAudioTranscription: {},
               outputAudioTranscription: {},
               tools: [{
                 functionDeclarations: [{

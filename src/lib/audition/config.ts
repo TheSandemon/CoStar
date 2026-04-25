@@ -7,7 +7,7 @@ export const GEMINI_CONFIG = {
   liveModel: 'models/gemini-3.1-flash-live-preview',
 
   // Standard (non-streaming) model — used for post-interview feedback scoring
-  feedbackModel: 'gemini-3.1-flash-lite-preview',
+  feedbackModel: 'gemini-3.1-flash-live-preview',
 
   // WebSocket host for the Live API
   liveApiHost: 'generativelanguage.googleapis.com',

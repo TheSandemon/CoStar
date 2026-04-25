@@ -11,7 +11,7 @@ export default function SignInPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push(user.accountType ? "/dashboard" : "/onboarding");
+      router.push(user.accountType === "admin" || user.accountType === "owner" ? "/admin" : user.accountType ? "/dashboard" : "/onboarding");
     }
   }, [user, loading, router]);
 
@@ -51,7 +51,7 @@ export default function SignInPage() {
         </button>
 
         <p className="mt-8 text-center text-slate-500 text-sm">
-          Don't have an account?{" "}
+          Don&apos;t have an account?{" "}
           <button
             onClick={() => router.push("/sign-up")}
             className="text-amber-400 hover:text-amber-300"

@@ -159,6 +159,27 @@ setup → requesting-permission → connecting → interviewing → ending → r
 
 On any error after `connecting`, the phase must reset to `setup` and the error must be surfaced.
 
+### Static Account Types and Admin/Owner Access
+
+Account type is an immutable identity path stored on `users/{uid}`:
+- Public paths: `user`, `business`, `agency`
+- Hidden privileged paths: `admin`, `owner`
+
+Public sign-up must only expose `user`, `business`, and `agency`. Do not add `admin` or `owner` as selectable UI options.
+
+`kyletouchet@gmail.com` is the hardcoded owner bootstrap email. `POST /api/account/bootstrap` verifies the Firebase ID token server-side and forces that email to:
+- `accountType: "owner"`
+- `role: "owner"`
+- `accountTypeLocked: true`
+- `accountTypeSource: "system"`
+
+Admin/owner users should use `/admin`, not normal onboarding. Admin APIs must verify the Firebase ID token and read the caller profile from Firestore; never trust client UI state for admin authorization.
+
+Admin routes:
+- `GET /api/admin/summary` — admin/owner only, returns counts and recent users.
+- `POST /api/admin/users/set-role` — owner only, promotes/demotes admins by email.
+- `POST /api/admin/users/set-status` — admin/owner only, suspends/reactivates users and toggles public profile visibility.
+
 ### Per-User Settings (Firestore)
 
 Stored at `auditionSettings/{uid}`:

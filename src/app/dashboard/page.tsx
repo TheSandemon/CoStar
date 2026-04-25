@@ -33,6 +33,10 @@ export default function DashboardPage() {
 
       try {
         const loadedProfile = await getUserProfile(user.uid);
+        if (loadedProfile?.accountType === "admin" || loadedProfile?.accountType === "owner") {
+          router.push("/admin");
+          return;
+        }
         if (loadedProfile && !loadedProfile.accountType) {
           router.push("/onboarding");
           return;

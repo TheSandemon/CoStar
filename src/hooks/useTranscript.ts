@@ -15,7 +15,7 @@ export function useTranscript() {
     setEntries((prev) => {
       const last = prev[prev.length - 1];
       if (last && last.role === role && !last.isFinal) {
-        return [...prev.slice(0, -1), { ...last, text, timestamp: Date.now() }];
+        return [...prev.slice(0, -1), { ...last, text: last.text + text, timestamp: Date.now() }];
       }
       return [
         ...prev,

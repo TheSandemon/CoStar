@@ -55,6 +55,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const sessionStartRef = useRef<number>(0);
   const interviewStartTimeRef = useRef<number>(0);
   const sessionIdRef = useRef<string>('');
+  const pendingEndRef = useRef(false);
 
   useEffect(() => {
     if (mode === 'job' && jobId) {
@@ -82,7 +83,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       audioCapture.setPaused(false);
     },
     onInterviewComplete: () => {
-      handleEndInterview();
+      pendingEndRef.current = true;
     },
     onError: (msg) => {
       setSessionError(msg);
@@ -135,9 +136,9 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || 'Failed to get session token');
       }
-      const { key, host, liveModel: serverLiveModel } = (await res.json()) as GeminiSessionCredentials;
+      const { key, host } = (await res.json()) as GeminiSessionCredentials;
 
-      const credentials: GeminiSessionCredentials = { key, host, liveModel: serverLiveModel };
+      const credentials: GeminiSessionCredentials = { key, host };
 
       const voiceName = settings.voiceName || 'Alex';
       const systemPrompt =
@@ -146,7 +147,6 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
           : buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config, voiceName);
 
       await connect(credentials, systemPrompt, config, {
-        liveModel: settings.liveModel || undefined,
         liveApiHost: settings.liveApiHost || undefined,
         voiceName: settings.voiceName || undefined,
       });
@@ -238,6 +238,13 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
 
     setPhase('results');
   }, [disconnect, audioCapture, stopPlayback, entries, job, jobText, mode, config, settings, user, jobId, saveSession]);
+
+  useEffect(() => {
+    if (pendingEndRef.current && !isPlaying) {
+      pendingEndRef.current = false;
+      handleEndInterview();
+    }
+  }, [isPlaying, handleEndInterview]);
 
   const handleCancelInterview = useCallback(() => {
     disconnect();

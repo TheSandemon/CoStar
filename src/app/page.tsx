@@ -62,7 +62,7 @@ export default function Home() {
             Choose Your Path
           </h2>
           <p className="text-slate-400 text-center mb-16 max-w-2xl mx-auto">
-            Whether you're building your career, building a team, or coaching the next generation of talent, CoStar has you covered.
+            Whether you&apos;re building your career, building a team, or coaching the next generation of talent, CoStar has you covered.
           </p>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-7xl mx-auto">

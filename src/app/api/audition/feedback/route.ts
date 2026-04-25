@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     // Resolve API key: prefer user's Firestore settings over env var
     const authHeader = req.headers.get('Authorization');
     let apiKey = process.env.GEMINI_API_KEY;
-    let feedbackModel: string = GEMINI_CONFIG.feedbackModel;
+    const feedbackModel: string = GEMINI_CONFIG.feedbackModel;
 
     if (authHeader?.startsWith('Bearer ')) {
       try {
@@ -48,7 +48,6 @@ export async function POST(req: NextRequest) {
         if (snap.exists) {
           const data = snap.data() as Record<string, string>;
           if (data.geminiApiKey) apiKey = data.geminiApiKey;
-          if (data.feedbackModel) feedbackModel = data.feedbackModel;
         }
       } catch {
         // If token verification fails, fall through to env var
@@ -68,7 +67,11 @@ export async function POST(req: NextRequest) {
 
     const transcriptText = transcript
       .filter((e) => e.isFinal)
-      .map((e) => `${e.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${e.text}`)
+      .map((e) => {
+        const text = e.text.replace(/INTERVIEW_COMPLETE/gi, '').trim();
+        return text ? `${e.role === 'ai' ? 'Interviewer' : 'Candidate'}: ${text}` : null;
+      })
+      .filter(Boolean)
       .join('\n');
 
     const focusLine = focus?.trim() ? ` focused on ${focus.trim()}` : '';

@@ -46,7 +46,7 @@ export default function SignUpPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push(user.accountType ? "/dashboard" : "/onboarding");
+      router.push(user.accountType === "admin" || user.accountType === "owner" ? "/admin" : user.accountType ? "/dashboard" : "/onboarding");
     }
   }, [user, loading, router]);
 

@@ -9,8 +9,6 @@ import type { AuditionPreset } from '@/lib/audition/types';
 export interface AuditionSettings {
   geminiApiKey: string;
   liveApiHost: string;
-  liveModel: string;
-  feedbackModel: string;
   voiceName: string;
   presets: AuditionPreset[];
 }
@@ -18,8 +16,6 @@ export interface AuditionSettings {
 export const AUDITION_SETTINGS_DEFAULTS: AuditionSettings = {
   geminiApiKey: '',
   liveApiHost: GEMINI_CONFIG.liveApiHost,
-  liveModel: GEMINI_CONFIG.liveModel,
-  feedbackModel: GEMINI_CONFIG.feedbackModel,
   voiceName: GEMINI_CONFIG.voiceName,
   presets: [],
 };

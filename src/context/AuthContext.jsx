@@ -17,6 +17,24 @@ import {
     isAccountType,
 } from '@/lib/profile';
 
+async function bootstrapAccount(currentUser, requestedType) {
+    const token = await currentUser.getIdToken();
+    const response = await fetch('/api/account/bootstrap', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ requestedType }),
+    });
+
+    if (!response.ok) {
+        throw new Error(await response.text());
+    }
+
+    return response.json();
+}
+
 const AuthContext = createContext();
 
 export const useAuth = () => useContext(AuthContext);
@@ -79,10 +97,19 @@ export const AuthProvider = ({ children }) => {
                 const requestedType = isAccountType(storedRequestedType) ? storedRequestedType : null;
                 window.sessionStorage.removeItem('costar:requestedAccountType');
 
-                const profile = await createOrSyncUserProfileFromAuth(
-                    currentUser,
-                    userSnap.exists() && userSnap.data()?.accountType ? null : requestedType
-                );
+                let profile;
+                try {
+                    profile = await bootstrapAccount(
+                        currentUser,
+                        userSnap.exists() && userSnap.data()?.accountType ? null : requestedType
+                    );
+                } catch (bootstrapError) {
+                    console.warn("Server bootstrap failed; falling back to client sync:", bootstrapError);
+                    profile = await createOrSyncUserProfileFromAuth(
+                        currentUser,
+                        userSnap.exists() && userSnap.data()?.accountType ? null : requestedType
+                    );
+                }
 
                 setUser({
                     ...profile,

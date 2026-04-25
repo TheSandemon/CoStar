@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { LogOut, Briefcase, Building2, User, Settings, Mic } from 'lucide-react';
+import { LogOut, User, Mic, Shield } from 'lucide-react';
+import SiteSearch from './SiteSearch';
 
 export default function NavHeader() {
   const { user, logout, loading } = useAuth();
@@ -56,9 +57,16 @@ export default function NavHeader() {
           {accountType === 'business' && (
             <Link href="/dashboard/settings" className="text-slate-300 hover:text-white transition-colors">Company Profile</Link>
           )}
+          {(accountType === 'admin' || accountType === 'owner') && (
+            <Link href="/admin" className="flex items-center gap-1.5 text-amber-300 hover:text-amber-200 transition-colors font-medium">
+              <Shield className="w-3.5 h-3.5" />
+              Admin
+            </Link>
+          )}
         </nav>
 
         <div className="flex items-center gap-3">
+          <SiteSearch />
           {user ? (
             <>
               <Link

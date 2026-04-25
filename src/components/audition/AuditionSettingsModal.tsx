@@ -127,42 +127,6 @@ export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, 
           </p>
         </div>
 
-        {/* API Host */}
-        <div className="space-y-1.5">
-          <label className="text-slate-300 text-sm font-medium">API Host</label>
-          <input
-            type="text"
-            value={form.liveApiHost}
-            onChange={(e) => patch('liveApiHost', e.target.value)}
-            placeholder={AUDITION_SETTINGS_DEFAULTS.liveApiHost}
-            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-amber-500 placeholder-slate-600"
-          />
-        </div>
-
-        {/* Live Model */}
-        <div className="space-y-1.5">
-          <label className="text-slate-300 text-sm font-medium">Live Model</label>
-          <input
-            type="text"
-            value={form.liveModel}
-            onChange={(e) => patch('liveModel', e.target.value)}
-            placeholder={AUDITION_SETTINGS_DEFAULTS.liveModel}
-            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-amber-500 placeholder-slate-600"
-          />
-        </div>
-
-        {/* Feedback Model */}
-        <div className="space-y-1.5">
-          <label className="text-slate-300 text-sm font-medium">Feedback Model</label>
-          <input
-            type="text"
-            value={form.feedbackModel}
-            onChange={(e) => patch('feedbackModel', e.target.value)}
-            placeholder={AUDITION_SETTINGS_DEFAULTS.feedbackModel}
-            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-amber-500 placeholder-slate-600"
-          />
-        </div>
-
         {/* Voice */}
         <div className="space-y-1.5">
           <label className="text-slate-300 text-sm font-medium">AI Voice</label>

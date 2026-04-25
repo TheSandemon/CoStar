@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     function validAccountType(value) {
-      return value in ['user', 'business', 'agency'];
+      return value in ['user', 'business', 'agency', 'admin', 'owner'];
     }
 
     function accountTypeIsCreateValid() {
