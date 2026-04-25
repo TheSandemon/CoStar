@@ -47,7 +47,8 @@ export async function getCallerProfile(req: Request) {
 }
 
 export function isPrivilegedType(accountType?: unknown): accountType is 'admin' | 'owner' {
-  return accountType === 'admin' || accountType === 'owner';
+  const normalized = normalizeAccountType(accountType);
+  return normalized === 'admin' || normalized === 'owner';
 }
 
 export function isOwnerEmail(email?: string | null): boolean {
@@ -71,9 +72,17 @@ export async function requireOwner(req: Request) {
 }
 
 export function assertAccountType(value: unknown): asserts value is AccountType {
-  if (!['user', 'business', 'agency', 'admin', 'owner'].includes(String(value))) {
+  if (!normalizeAccountType(value)) {
     throw new Response(JSON.stringify({ error: 'Invalid account type' }), { status: 400 });
   }
+}
+
+function normalizeAccountType(value: unknown): AccountType | null {
+  if (value === 'user') return 'talent';
+  if (['talent', 'business', 'agency', 'admin', 'owner'].includes(String(value))) {
+    return value as AccountType;
+  }
+  return null;
 }
 
 export function jsonError(err: unknown) {

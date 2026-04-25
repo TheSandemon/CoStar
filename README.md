@@ -9,11 +9,11 @@
 
 ## Overview
 
-**CoStar** is a professional networking platform that connects job seekers with employers through AI-driven profile matching. The platform supports public account paths and hidden privileged operator paths:
+**CoStar** is a professional networking platform that connects talent with employers through AI-driven profile matching. The platform supports public account paths and hidden privileged operator paths:
 
-1. **Free User Accounts** - Job seekers can create comprehensive professional profiles connecting social networks, work history, education, accolades, and "work vibe" assessments
+1. **Talent Accounts** - Talent can create comprehensive professional profiles connecting social networks, work history, education, accolades, and "work vibe" assessments
 2. **Paid Business Accounts** - Employers can access aggregated candidate profiles synthesized with an HR AI agent to find deeply compatible candidates
-3. **Agency Accounts** - Agencies can coach, prep, and place job seekers with AI-powered interview practice and profile tools
+3. **Agency Accounts** - Agencies can coach, prep, and place talent with AI-powered interview practice and profile tools
 4. **Admin/Owner Accounts** - Hidden privileged account types for platform operations and moderation
 
 ## Tech Stack
@@ -152,7 +152,7 @@ CoStar/
 
 1. Go to **Firestore Database** → **Create database**
 2. Start in test mode (or configure security rules)
-3. Database will be automatically used for user profiles
+3. Database will be automatically used for talent profiles
 
 ### 4. Get Configuration
 
@@ -175,6 +175,14 @@ NEXT_PUBLIC_FIREBASE_APP_ID=1:123456789:web:abc123
 ---
 
 ## Vercel Deployment
+
+### Project Workflow
+
+1. Commit changes to a GitHub branch and open a pull request.
+2. GitHub/Vercel automatically deploys the PR preview.
+3. Test the preview deployment.
+4. Merge after review.
+5. Wait for the production redeploy, then test the live site.
 
 ### Quick Deploy
 
@@ -227,8 +235,8 @@ NEXT_PUBLIC_FIREBASE_APP_ID
   email: string,                 // User email
   displayName: string,           // Full name
   photoURL: string,              // Profile photo
-  role: "user" | "business" | "agency" | "admin" | "owner",
-  accountType: "user" | "business" | "agency" | "admin" | "owner",
+  role: "talent" | "business" | "agency" | "admin" | "owner",
+  accountType: "talent" | "business" | "agency" | "admin" | "owner",
   accountTypeLocked: boolean,    // Once true, account type is immutable via client writes
   accountTypeLockedAt: timestamp,
   accountTypeSource: "signup" | "legacy" | "migration" | "system",
@@ -293,7 +301,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID
 
 ### Account Type Rules
 
-- Public sign-up only offers `user`, `business`, and `agency`.
+- Public sign-up only offers `talent`, `business`, and `agency`.
 - `admin` and `owner` are hidden privileged types and must never be exposed as selectable sign-up paths.
 - `kyletouchet@gmail.com` is the hardcoded owner bootstrap email. On authenticated account bootstrap, that email is forced to `accountType: "owner"` and `accountTypeSource: "system"`.
 - Account type is static once locked. Changing regular account paths requires deleting the account and recreating it.
@@ -301,7 +309,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID
 
 ### Admin API Routes
 
-- `POST /api/account/bootstrap` - Firebase-auth-gated server sync for user profiles. Forces `kyletouchet@gmail.com` to owner.
+- `POST /api/account/bootstrap` - Firebase-auth-gated server sync for account profiles. Forces `kyletouchet@gmail.com` to owner.
 - `GET /api/admin/summary` - Admin/owner only. Returns platform counts and recent users.
 - `POST /api/admin/users/set-role` - Owner only. Promotes/demotes admin accounts by email.
 - `POST /api/admin/users/set-status` - Admin/owner only. Suspends/reactivates users and toggles public profile visibility.
@@ -373,7 +381,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID
 - **Talent Search**: AI-powered candidate discovery
 - **Pipeline Management**: Track candidates through hiring funnel
 - **Team Collaboration**: Multi-user hiring teams
-- **Candidate Messaging**: Direct communication channel with job seekers
+- **Candidate Messaging**: Direct communication channel with talent
 
 ---
 
@@ -407,7 +415,8 @@ npm run lint          # Run ESLint
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Submit a pull request
+4. Submit a pull request and validate the Vercel preview
+5. Merge after review, wait for redeploy, and test live
 
 ---
 

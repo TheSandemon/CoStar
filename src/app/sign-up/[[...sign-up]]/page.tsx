@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import { ArrowLeft, Building2, Chrome, User, Users2 } from "lucide-react";
-import { accountTypeLabels, isAccountType, type AccountType } from "@/lib/profile";
+import { accountTypeLabels, normalizeAccountType, type AccountType } from "@/lib/profile";
 
 const accountTypeOptions: Array<{
   type: AccountType;
@@ -15,9 +15,9 @@ const accountTypeOptions: Array<{
   accent: string;
 }> = [
   {
-    type: "user",
-    title: "Job Seeker",
-    description: "Build a public career profile, practice auditions, and find aligned jobs.",
+    type: "talent",
+    title: "Talent",
+    description: "Build a public talent profile, practice auditions, and find aligned jobs.",
     Icon: User,
     accent: "text-amber-400 border-amber-500/40 bg-amber-500/10",
   },
@@ -42,7 +42,10 @@ export default function SignUpPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTypeParam = searchParams.get("type");
-  const requestedType = isAccountType(requestedTypeParam) ? requestedTypeParam : null;
+  const normalizedRequestedType = normalizeAccountType(requestedTypeParam);
+  const requestedType = normalizedRequestedType && normalizedRequestedType !== "admin" && normalizedRequestedType !== "owner"
+    ? normalizedRequestedType
+    : null;
 
   useEffect(() => {
     if (!loading && user) {

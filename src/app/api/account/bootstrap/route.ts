@@ -12,13 +12,14 @@ import {
 } from '@/lib/firebaseAdmin';
 import type { AccountType } from '@/lib/profile';
 
-const publicAccountTypes: AccountType[] = ['user', 'business', 'agency'];
+const publicAccountTypes: AccountType[] = ['talent', 'business', 'agency'];
 
 export async function POST(req: NextRequest) {
   try {
     const decoded = await verifyBearerToken(req);
     const body = await req.json().catch(() => ({}));
-    const requestedType = publicAccountTypes.includes(body?.requestedType) ? body.requestedType as AccountType : null;
+    const requestedBodyType = body?.requestedType === 'user' ? 'talent' : body?.requestedType;
+    const requestedType = publicAccountTypes.includes(requestedBodyType) ? requestedBodyType as AccountType : null;
     const db = getAdminDb();
     const userRef = db.doc(`users/${decoded.uid}`);
     const snap = await userRef.get();
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     const forcedOwner = isOwnerEmail(email);
     const nextAccountType: AccountType | null = forcedOwner
       ? 'owner'
-      : existing.accountType ?? requestedType ?? null;
+      : existing.accountType === 'user' ? 'talent' : existing.accountType ?? requestedType ?? null;
 
     const baseData = {
       uid: decoded.uid,
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       disabled: false,
     } : {
       accountType: null,
-      role: 'user',
+      role: 'talent',
       accountTypeLocked: false,
       moderationStatus: existing.moderationStatus ?? 'active',
       disabled: false,

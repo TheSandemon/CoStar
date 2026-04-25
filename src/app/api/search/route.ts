@@ -4,6 +4,7 @@ import { getFirestore } from 'firebase-admin/firestore';
 import { SearchResult, SearchResultType } from '@/lib/search';
 
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 function getAdminApp() {
   if (getApps().length > 0) return getApps()[0];
@@ -25,11 +26,20 @@ function getAdminApp() {
   });
 }
 
+function normalizeAccountType(value: unknown): 'talent' | 'business' | 'agency' | 'admin' | 'owner' | null {
+  if (value === 'user') return 'talent';
+  if (['talent', 'business', 'agency', 'admin', 'owner'].includes(String(value))) {
+    return value as 'talent' | 'business' | 'agency' | 'admin' | 'owner';
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const queryParam = searchParams.get('q')?.toLowerCase() || '';
-    const typeParam = (searchParams.get('type') as SearchResultType) || 'all';
+    const rawTypeParam = searchParams.get('type') || 'all';
+    const typeParam = (rawTypeParam === 'user' ? 'talent' : rawTypeParam) as SearchResultType;
 
     if (!queryParam || queryParam.length < 2) {
       return NextResponse.json([]);
@@ -39,22 +49,26 @@ export async function GET(req: NextRequest) {
     const db = getFirestore(app);
     const results: SearchResult[] = [];
 
-    // Search Users & Agencies
-    if (typeParam === 'all' || typeParam === 'user' || typeParam === 'agency') {
+    // Search Talent & Agencies
+    const normalizedTypeParam = typeParam;
+
+    if (normalizedTypeParam === 'all' || normalizedTypeParam === 'talent' || normalizedTypeParam === 'agency') {
       const usersSnap = await db.collection('users').get();
       usersSnap.forEach(doc => {
         const data = doc.data();
+        const accountType = normalizeAccountType(data.accountType);
         const matchesName = (data.displayName || '').toLowerCase().includes(queryParam);
         const matchesHeadline = (data.headline || '').toLowerCase().includes(queryParam);
         const matchesBio = (data.bio || '').toLowerCase().includes(queryParam);
         
         if (matchesName || matchesHeadline || matchesBio) {
-          const isAgency = data.accountType === 'agency';
-          if (typeParam === 'all' || (typeParam === 'user' && !isAgency) || (typeParam === 'agency' && isAgency)) {
+          const isAgency = accountType === 'agency';
+          const isTalent = accountType === 'talent';
+          if (normalizedTypeParam === 'all' || (normalizedTypeParam === 'talent' && isTalent) || (normalizedTypeParam === 'agency' && isAgency)) {
             results.push({
               id: doc.id,
-              type: isAgency ? 'agency' : 'user',
-              title: data.displayName || 'Unnamed User',
+              type: isAgency ? 'agency' : 'talent',
+              title: data.displayName || 'Unnamed Talent',
               subtitle: data.headline || data.location || (isAgency ? 'Agency' : 'Talent'),
               image: data.photoURL || null,
               url: isAgency && data.slug ? `/agencies/${data.slug}` : (data.slug ? `/u/${data.slug}` : `/u/${doc.id}`)
@@ -65,7 +79,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Search Businesses
-    if (typeParam === 'all' || typeParam === 'business') {
+    if (normalizedTypeParam === 'all' || normalizedTypeParam === 'business') {
       const companiesSnap = await db.collection('companies').get();
       companiesSnap.forEach(doc => {
         const data = doc.data();
@@ -87,7 +101,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Search Jobs
-    if (typeParam === 'all' || typeParam === 'job') {
+    if (normalizedTypeParam === 'all' || normalizedTypeParam === 'job') {
       const jobsSnap = await db.collection('jobs').get();
       jobsSnap.forEach(doc => {
         const data = doc.data();

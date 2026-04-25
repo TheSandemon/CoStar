@@ -199,6 +199,7 @@ Stored at `auditionSettings/{uid}`:
 ## Deployment
 
 - **Platform**: Vercel
+- **Workflow**: Commit changes to a GitHub branch and open a PR. The GitHub/Vercel integration automatically deploys the PR preview. Test the preview deployment, merge after review, wait for the production redeploy, then test the live site.
 - **Environment variables required**:
   - `GEMINI_API_KEY` — fallback Gemini API key used when the user hasn't set their own in Settings
   - `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — Firebase Admin SDK credentials
@@ -212,7 +213,7 @@ The `.env.local` file committed to this repo contains **placeholder values only*
 This means:
 - Running `npm run dev` locally will work for UI/layout changes, but anything that hits a Gemini or Firebase API will fail with auth errors.
 - **Do not try to debug API connectivity locally** using `.env.local` without first filling in real keys.
-- To test the full audition flow, deploy to Vercel (preview or production) where the real env vars are configured.
+- To test the full audition flow, use the PR preview or production Vercel deployment where the real env vars are configured.
 - If you need to run locally with real keys, copy the values from Vercel's dashboard into `.env.local` temporarily. **Never commit them.**
 
 ---

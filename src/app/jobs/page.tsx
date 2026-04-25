@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { getScrapedJobs, getScrapedCategories, getScrapedLocations, JobFilters, SortOption, JobData } from '@/lib/jobs';
+import { JobFilters, SortOption, JobData } from '@/lib/jobs';
+import { fetchCareerjetJobs } from '@/lib/careerjet';
 import NavHeader from '@/components/NavHeader';
 import JobCard from '@/components/JobCard';
 import JobFiltersComponent from '@/components/JobFilters';
@@ -19,11 +20,10 @@ function JobsContent() {
   const [filters, setFilters] = useState<JobFilters>({});
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [hasMore, setHasMore] = useState(false);
-  const [lastDoc, setLastDoc] = useState<any>(null);
+  const [page, setPage] = useState(1);
   const [categories, setCategories] = useState<string[]>([]);
   const [locations, setLocations] = useState<{ city: string; country: string }[]>([]);
 
-  // Initialize filters from URL params
   useEffect(() => {
     const search = searchParams.get('search');
     const tag = searchParams.get('tag');
@@ -31,89 +31,67 @@ function JobsContent() {
 
     const newFilters: JobFilters = {};
 
-    if (search) {
-      newFilters.search = search;
-    }
+    if (search) newFilters.search = search;
+    if (tag) newFilters.tags = [tag];
+    if (remote) newFilters.remotePolicy = [remote];
 
-    if (tag) {
-      newFilters.tags = [tag];
-    }
-
-    if (remote) {
-      newFilters.remotePolicy = [remote];
-    }
-
-    // Only update if we have URL params
     if (Object.keys(newFilters).length > 0) {
-      setFilters(prev => ({ ...prev, ...newFilters }));
+      setFilters((prev) => ({ ...prev, ...newFilters }));
     }
   }, [searchParams]);
 
-  // Redirect if not logged in
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/sign-in');
     }
   }, [user, authLoading, router]);
 
-  // Load jobs from Firestore (scrapedJobs collection)
-  const loadJobs = useCallback(async () => {
+  const loadJobs = useCallback(async (nextPage = 1, append = false) => {
     if (!user) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const result = await getScrapedJobs(
-        filters,
-        sortBy,
-        20,
-        lastDoc
+      const result = await fetchCareerjetJobs(filters, sortBy, nextPage, 20);
+      setJobs((prev) => (append ? [...prev, ...result.jobs] : result.jobs));
+      setHasMore(result.hasMore);
+      setPage(nextPage);
+
+      const nextCategories = Array.from(new Set(result.jobs.map((job) => job.category).filter(Boolean) as string[]));
+      const nextLocations = Array.from(
+        new Map(
+          result.jobs
+            .filter((job) => job.location?.city || job.location?.country)
+            .map((job) => {
+              const city = job.location?.city || '';
+              const country = job.location?.country || '';
+              return [`${city}|${country}`, { city, country }];
+            }),
+        ).values(),
       );
 
-      setJobs(result.jobs);
-      setHasMore(result.hasMore);
-      setLastDoc(result.lastDocument);
+      setCategories(nextCategories);
+      setLocations(nextLocations);
     } catch (err) {
-      setError('Failed to load jobs. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to load jobs. Please try again.');
       console.error('Error loading jobs:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [filters, sortBy, lastDoc, user]);
-
-  // Initial load on mount
-  useEffect(() => {
-    if (user) {
-      loadJobs();
-    }
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Load categories and locations from scrapedJobs
-  useEffect(() => {
-    if (!user) return;
-
-    const loadMeta = async () => {
-      try {
-        const cats = await getScrapedCategories();
-        const locs = await getScrapedLocations();
-        setCategories(cats);
-        setLocations(locs);
-      } catch (err) {
-        console.error('Error loading filters meta:', err);
-      }
-    };
-    loadMeta();
-  }, [user]);
-
-  // Reload when filters or sort changes
-  useEffect(() => {
-    if (user) {
-      setLastDoc(null);
-      // Reinitialize cache by passing null lastDoc
-      loadJobs();
-    }
   }, [filters, sortBy, user]);
+
+  useEffect(() => {
+    if (user) {
+      loadJobs(1, false);
+    }
+  }, [user, loadJobs]);
+
+  useEffect(() => {
+    if (user) {
+      loadJobs(1, false);
+    }
+  }, [filters, sortBy, user, loadJobs]);
 
   const handleFiltersChange = (newFilters: JobFilters) => {
     setFilters(newFilters);
@@ -139,7 +117,6 @@ function JobsContent() {
     <div className="min-h-screen bg-slate-900">
       <NavHeader />
 
-      {/* Header */}
       <div className="bg-slate-800/50 border-b border-white/10">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="flex items-center gap-3 mb-2">
@@ -149,14 +126,12 @@ function JobsContent() {
             <h1 className="text-2xl font-bold text-white">Job Listings</h1>
           </div>
           <p className="text-slate-400">
-            Find your next opportunity from {jobs.length > 0 ? `${jobs.length}+` : 'hundreds of'} open positions
+            Live Careerjet listings only — legacy Firestore listings are no longer shown.
           </p>
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Error State */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 text-red-400 mb-6">
             <AlertCircle className="w-5 h-5" />
@@ -165,7 +140,6 @@ function JobsContent() {
         )}
 
         <div className="flex gap-8">
-          {/* Filters Sidebar */}
           <aside className="w-72 flex-shrink-0">
             <JobFiltersComponent
               filters={filters}
@@ -177,9 +151,8 @@ function JobsContent() {
             />
           </aside>
 
-          {/* Job Listings */}
           <div className="flex-1">
-            {isLoading ? (
+            {isLoading && jobs.length === 0 ? (
               <div className="flex items-center justify-center py-20">
                 <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
               </div>
@@ -191,17 +164,16 @@ function JobsContent() {
               </div>
             ) : (
               <div className="space-y-4">
-                {jobs.map(job => (
+                {jobs.map((job) => (
                   <JobCard key={job.jobId} job={job} />
                 ))}
               </div>
             )}
 
-            {/* Load More */}
             {hasMore && !isLoading && (
               <div className="mt-6 text-center">
                 <button
-                  onClick={loadJobs}
+                  onClick={() => loadJobs(page + 1, true)}
                   className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl font-medium transition-colors"
                 >
                   Load more jobs
@@ -217,11 +189,13 @@ function JobsContent() {
 
 export default function JobsPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+        </div>
+      }
+    >
       <JobsContent />
     </Suspense>
   );

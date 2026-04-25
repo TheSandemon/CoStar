@@ -9,7 +9,11 @@ import {
   accountTypeLabels,
   buildProfileChecklist,
   calculateProfileComplete,
+  getOperatorPreviewProfile,
   getUserProfile,
+  isPrivilegedAccountType,
+  publicAccountTypes,
+  type PublicAccountType,
   type UserProfile,
 } from "@/lib/profile";
 import { User, Building2, Briefcase, Settings, Star, CheckCircle2, Github, Linkedin } from "lucide-react";
@@ -18,6 +22,7 @@ export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [previewType, setPreviewType] = useState<PublicAccountType>("talent");
 
   useEffect(() => {
     if (!loading && !user) {
@@ -32,11 +37,10 @@ export default function DashboardPage() {
       }
 
       try {
-        const loadedProfile = await getUserProfile(user.uid);
-        if (loadedProfile?.accountType === "admin" || loadedProfile?.accountType === "owner") {
-          router.push("/admin");
-          return;
-        }
+        const isOperator = isPrivilegedAccountType(user.accountType);
+        const loadedProfile = isOperator
+          ? await getOperatorPreviewProfile(user.uid, previewType, user)
+          : await getUserProfile(user.uid);
         if (loadedProfile && !loadedProfile.accountType) {
           router.push("/onboarding");
           return;
@@ -50,7 +54,7 @@ export default function DashboardPage() {
     if (!loading) {
       loadProfile();
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, previewType]);
 
   const profileChecklist = useMemo(
     () => buildProfileChecklist(profile ?? user ?? null),
@@ -69,6 +73,7 @@ export default function DashboardPage() {
 
   if (!user) return null;
 
+  const isOperator = isPrivilegedAccountType(user.accountType);
   const accountType: UserProfile["accountType"] | null =
     profile?.accountType ?? (user.accountType as UserProfile["accountType"] | undefined) ?? null;
   const accountLabel = accountType ? accountTypeLabels[accountType] : "Account";
@@ -90,6 +95,32 @@ export default function DashboardPage() {
             {profile?.headline || `${accountLabel} dashboard`}
           </p>
         </div>
+
+        {isOperator && (
+          <div className="mb-8 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="font-semibold text-amber-200">Previewing public account path</div>
+                <p className="text-sm text-slate-300">Sandbox data is private to your operator account.</p>
+              </div>
+              <div className="flex rounded-lg border border-white/10 bg-slate-900 p-1">
+                {publicAccountTypes.map((type) => (
+                  <button
+                    key={type}
+                    onClick={() => setPreviewType(type)}
+                    className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                      previewType === type
+                        ? "bg-amber-500 text-slate-900"
+                        : "text-slate-300 hover:bg-white/10 hover:text-white"
+                    }`}
+                  >
+                    {accountTypeLabels[type]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
@@ -133,10 +164,10 @@ export default function DashboardPage() {
             </div>
 
             <button
-              onClick={() => router.push("/onboarding")}
+              onClick={() => router.push(isOperator ? `/dashboard/settings?preview=${previewType}` : "/onboarding")}
               className="mt-6 w-full py-3 bg-slate-700 text-white rounded-lg font-medium hover:bg-slate-600 transition-colors"
             >
-              Complete Your Profile
+              {isOperator ? "Edit Preview Profile" : "Complete Your Profile"}
             </button>
           </div>
 

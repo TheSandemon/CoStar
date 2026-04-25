@@ -162,10 +162,10 @@ On any error after `connecting`, the phase must reset to `setup` and the error m
 ### Static Account Types and Admin/Owner Access
 
 Account type is an immutable identity path stored on `users/{uid}`:
-- Public paths: `user`, `business`, `agency`
+- Public paths: `talent`, `business`, `agency`
 - Hidden privileged paths: `admin`, `owner`
 
-Public sign-up must only expose `user`, `business`, and `agency`. Do not add `admin` or `owner` as selectable UI options.
+Public sign-up must only expose `talent`, `business`, and `agency`. Do not add `admin` or `owner` as selectable UI options.
 
 `kyletouchet@gmail.com` is the hardcoded owner bootstrap email. `POST /api/account/bootstrap` verifies the Firebase ID token server-side and forces that email to:
 - `accountType: "owner"`
@@ -173,7 +173,7 @@ Public sign-up must only expose `user`, `business`, and `agency`. Do not add `ad
 - `accountTypeLocked: true`
 - `accountTypeSource: "system"`
 
-Admin/owner users should use `/admin`, not normal onboarding. Admin APIs must verify the Firebase ID token and read the caller profile from Firestore; never trust client UI state for admin authorization.
+Admin/owner users have a separate operator account surface and use `/admin` for platform operations. They may preview `talent`, `business`, and `agency` dashboards/settings with private sandbox data. Admin APIs must verify the Firebase ID token and read the caller profile from Firestore; never trust client UI state for admin authorization.
 
 Admin routes:
 - `GET /api/admin/summary` — admin/owner only, returns counts and recent users.
@@ -199,6 +199,7 @@ Stored at `auditionSettings/{uid}`:
 ## Deployment
 
 - **Platform**: Vercel
+- **Workflow**: Commit changes to a GitHub branch and open a PR. The GitHub/Vercel integration automatically deploys the PR preview. Test the preview deployment, merge after review, wait for the production redeploy, then test the live site.
 - **Environment variables required**:
   - `GEMINI_API_KEY` — fallback Gemini API key used when the user hasn't set their own in Settings
   - `FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY` — Firebase Admin SDK credentials
@@ -212,14 +213,14 @@ The `.env.local` file committed to this repo contains **placeholder values only*
 This means:
 - Running `npm run dev` locally will work for UI/layout changes, but anything that hits a Gemini or Firebase API will fail with auth errors.
 - **Do not try to debug API connectivity locally** using `.env.local` without first filling in real keys.
-- To test the full audition flow, deploy to Vercel (preview or production) where the real env vars are configured.
+- To test the full audition flow, use the PR preview or production Vercel deployment where the real env vars are configured.
 - If you need to run locally with real keys, copy the values from Vercel's dashboard into `.env.local` temporarily. **Never commit them.**
 
 ---
 
 ## Messaging System
 
-The platform includes a real-time messaging system built on Firebase/Firestore that allows Job Seekers, Businesses, and Agencies to communicate.
+The platform includes a real-time messaging system built on Firebase/Firestore that allows Talent, Businesses, and Agencies to communicate.
 
 ### Architecture
 

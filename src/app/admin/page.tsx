@@ -8,9 +8,9 @@ import { useAuth } from "@/context/AuthContext";
 import { auth } from "@/lib/firebase";
 
 interface AdminSummary {
-  counts: {
-    totalUsers: number;
-    user: number;
+    counts: {
+      totalUsers: number;
+    talent: number;
     business: number;
     agency: number;
     admin: number;
@@ -159,7 +159,7 @@ export default function AdminPage() {
 
         <div className="mb-8 grid gap-4 md:grid-cols-5">
           {[
-            ["Job Seekers", counts?.user ?? 0],
+            ["Talent", counts?.talent ?? 0],
             ["Businesses", counts?.business ?? 0],
             ["Agencies", counts?.agency ?? 0],
             ["Admins", counts?.admin ?? 0],
@@ -195,6 +195,15 @@ export default function AdminPage() {
                 className="rounded-xl bg-slate-700 px-5 py-3 font-bold text-white hover:bg-slate-600 disabled:opacity-60"
               >
                 Demote Admin
+              </button>
+            </div>
+            <div className="mt-4 border-t border-white/10 pt-4">
+              <button
+                onClick={() => callAdminApi("/api/admin/migrate/talent", {}, "Legacy account profiles migrated to Talent.")}
+                disabled={isActing}
+                className="rounded-xl bg-slate-700 px-5 py-3 font-bold text-white hover:bg-slate-600 disabled:opacity-60"
+              >
+                Migrate User Profiles to Talent
               </button>
             </div>
           </section>

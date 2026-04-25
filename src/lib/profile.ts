@@ -12,9 +12,10 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 
-export type AccountType = 'user' | 'business' | 'agency' | 'admin' | 'owner';
+export type AccountType = 'talent' | 'business' | 'agency' | 'admin' | 'owner';
 export type SocialPlatform = 'github' | 'linkedin' | 'email';
 export type AccountTypeSource = 'signup' | 'legacy' | 'migration' | 'system';
+export type PublicAccountType = 'talent' | 'business' | 'agency';
 
 export interface SocialConnection {
   platform: SocialPlatform;
@@ -102,19 +103,34 @@ export const emptyWorkVibe: WorkVibe = {
 };
 
 export const accountTypeLabels: Record<AccountType, string> = {
-  user: 'Job Seeker',
+  talent: 'Talent',
   business: 'Employer',
   agency: 'Agency',
   admin: 'Admin',
   owner: 'Owner',
 };
 
-export const accountTypes: AccountType[] = ['user', 'business', 'agency', 'admin', 'owner'];
-export const publicSignupAccountTypes: AccountType[] = ['user', 'business', 'agency'];
+export const accountTypes: AccountType[] = ['talent', 'business', 'agency', 'admin', 'owner'];
+export const publicSignupAccountTypes: PublicAccountType[] = ['talent', 'business', 'agency'];
 export const privilegedAccountTypes: AccountType[] = ['admin', 'owner'];
+export const publicAccountTypes: PublicAccountType[] = ['talent', 'business', 'agency'];
 
 export function isAccountType(value: unknown): value is AccountType {
   return typeof value === 'string' && accountTypes.includes(value as AccountType);
+}
+
+export function normalizeAccountType(value: unknown): AccountType | null {
+  if (value === 'user') return 'talent';
+  return accountTypes.includes(value as AccountType) ? value as AccountType : null;
+}
+
+export function isPublicAccountType(value: unknown): value is PublicAccountType {
+  return normalizeAccountType(value) !== null && publicAccountTypes.includes(normalizeAccountType(value) as PublicAccountType);
+}
+
+export function isPrivilegedAccountType(value: unknown): value is 'admin' | 'owner' {
+  const accountType = normalizeAccountType(value);
+  return accountType === 'admin' || accountType === 'owner';
 }
 
 export function normalizeEmail(email?: string | null): string | null {
@@ -132,14 +148,15 @@ export function createSlug(value?: string | null, fallback?: string): string {
 }
 
 export function normalizeProfile(uid: string, data: Partial<UserProfile> = {}): UserProfile {
-  const accountType = data.accountType ?? null;
+  const accountType = normalizeAccountType(data.accountType);
+  const role = normalizeAccountType(data.role) ?? accountType ?? 'talent';
   return {
     uid,
     email: data.email ?? null,
     emailNormalized: data.emailNormalized ?? normalizeEmail(data.email),
     displayName: data.displayName ?? '',
     photoURL: data.photoURL ?? null,
-    role: data.role ?? accountType ?? 'user',
+    role,
     accountType,
     accountTypeLocked: data.accountTypeLocked ?? Boolean(accountType),
     accountTypeLockedAt: data.accountTypeLockedAt,
@@ -327,7 +344,7 @@ export async function getPublicProfileBySlugOrUid(
 
   const profileSnap = snapshot.docs.find((docSnap) => {
     const data = docSnap.data() as Partial<UserProfile>;
-    return data.publicProfileEnabled !== false && (!accountType || data.accountType === accountType);
+    return data.publicProfileEnabled !== false && (!accountType || normalizeAccountType(data.accountType) === accountType);
   });
   if (!profileSnap) return null;
 
@@ -429,7 +446,7 @@ export async function createOrSyncUserProfileFromAuth(
   const next = normalizeProfile(authUser.uid, {
     ...authFields,
     accountType: requestedType ?? null,
-    role: requestedType ?? 'user',
+    role: requestedType ?? 'talent',
     accountTypeLocked: Boolean(requestedType),
     accountTypeSource: requestedType ? 'signup' : undefined,
   });
@@ -487,4 +504,93 @@ export async function saveTypeSpecificProfile(
 
 export function getCurrentAccountPath(profile: Partial<UserProfile> | null | undefined): AccountType | null {
   return profile?.accountType ?? null;
+}
+
+export function createPreviewProfile(
+  operator: Partial<UserProfile>,
+  accountType: PublicAccountType
+): UserProfile {
+  const displayName = operator.displayName || operator.email || 'Preview Account';
+  return normalizeProfile(operator.uid || `preview-${accountType}`, {
+    uid: operator.uid || `preview-${accountType}`,
+    email: operator.email ?? null,
+    displayName,
+    photoURL: operator.photoURL ?? null,
+    accountType,
+    role: accountType,
+    headline:
+      accountType === 'business'
+        ? 'Hiring team on CoStar'
+        : accountType === 'agency'
+        ? 'Talent agency on CoStar'
+        : 'Talent on CoStar',
+    location: '',
+    slug: createSlug(displayName, operator.uid),
+    publicProfileEnabled: false,
+    workVibe: emptyWorkVibe,
+    businessProfile: accountType === 'business' ? {
+      companyName: displayName,
+      companySize: '1-10',
+      description: '',
+      headquarters: { city: '' },
+      hiringGoals: '',
+      culture: { values: '', tags: [] },
+    } : null,
+    agencyProfile: accountType === 'agency' ? {
+      agencyName: displayName,
+      description: '',
+      location: '',
+      specialties: [],
+      services: [],
+    } : null,
+  });
+}
+
+export async function getOperatorPreviewProfile(
+  operatorUid: string,
+  accountType: PublicAccountType,
+  operator: Partial<UserProfile>
+): Promise<UserProfile> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const previewRef = doc(db, 'operatorPreviewProfiles', operatorUid, 'paths', accountType);
+  const previewSnap = await getDoc(previewRef);
+  if (!previewSnap.exists()) return createPreviewProfile(operator, accountType);
+
+  const preview = normalizeProfile(operatorUid, {
+    ...previewSnap.data() as Partial<UserProfile>,
+    uid: operatorUid,
+    accountType,
+    role: accountType,
+  });
+  return {
+    ...preview,
+    profileComplete: calculateProfileComplete(preview),
+  };
+}
+
+export async function saveOperatorPreviewProfile(
+  operatorUid: string,
+  accountType: PublicAccountType,
+  updates: Partial<UserProfile>
+): Promise<void> {
+  if (!db) throw new Error('Firestore not initialized');
+
+  const previewRef = doc(db, 'operatorPreviewProfiles', operatorUid, 'paths', accountType);
+  const next = normalizeProfile(operatorUid, {
+    ...updates,
+    uid: operatorUid,
+    accountType,
+    role: accountType,
+    publicProfileEnabled: false,
+  });
+
+  await setDoc(previewRef, {
+    ...next,
+    accountType,
+    role: accountType,
+    publicProfileEnabled: false,
+    profileComplete: calculateProfileComplete(next),
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }

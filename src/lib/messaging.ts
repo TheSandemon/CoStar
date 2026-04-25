@@ -19,7 +19,7 @@ export interface Participant {
   uid: string;
   name: string;
   avatarUrl: string | null;
-  role: 'user' | 'business' | 'agency';
+  role: 'talent' | 'business' | 'agency';
 }
 
 export interface Conversation {

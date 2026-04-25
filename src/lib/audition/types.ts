@@ -55,4 +55,5 @@ export interface AuditionSession {
   strengths: string[];
   improvements: string[];
   durationSeconds: number;
+  ultraFeedback?: string;
 }

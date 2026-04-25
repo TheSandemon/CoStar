@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { getScrapedJobById, JobData } from '@/lib/jobs';
+import { deserializeCareerjetJob, serializeCareerjetJob } from '@/lib/careerjet';
 import Link from 'next/link';
 import NavHeader from '@/components/NavHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -29,6 +30,7 @@ import {
 export default function JobDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const jobId = params.jobId as string;
   const { user } = useAuth();
   const { openMessaging } = useMessaging();
@@ -52,9 +54,9 @@ export default function JobDetailPage() {
       const conversationId = await getOrCreateConversation({
         [user.uid]: {
           uid: user.uid,
-          name: user.displayName || 'Job Seeker',
+          name: user.displayName || 'Talent',
           avatarUrl: user.photoURL || null,
-          role: 'user'
+          role: 'talent'
         },
         [recruiterId]: {
           uid: recruiterId,
@@ -80,6 +82,13 @@ export default function JobDetailPage() {
       setError(null);
 
       try {
+        const payloadJob = deserializeCareerjetJob(searchParams.get('job'));
+
+        if (payloadJob && payloadJob.jobId === jobId) {
+          setJob(payloadJob);
+          return;
+        }
+
         const jobData = await getScrapedJobById(jobId);
 
         if (!jobData) {
@@ -98,7 +107,7 @@ export default function JobDetailPage() {
     };
 
     loadJob();
-  }, [jobId]);
+  }, [jobId, searchParams]);
 
   const formatSalary = () => {
     if (!job?.salary?.visible || (!job.salary?.min && !job.salary?.max)) return 'Salary not disclosed';
@@ -404,7 +413,10 @@ export default function JobDetailPage() {
                   )}
 
                   <Link
-                    href={`/jobs/${jobId}/audition`}
+                    href={{
+                      pathname: `/jobs/${jobId}/audition`,
+                      query: { job: serializeCareerjetJob(job) },
+                    }}
                     className="w-full flex items-center justify-center gap-2 px-6 py-3 mb-1
                       bg-gradient-to-r from-violet-600 to-purple-600
                       hover:from-violet-500 hover:to-purple-500

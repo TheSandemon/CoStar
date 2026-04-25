@@ -4,13 +4,14 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Building2, ExternalLink, MapPin, User, Users2 } from "lucide-react";
 import { accountTypeLabels, type UserProfile } from "@/lib/profile";
+import ProfileCTA from "./ProfileCTA";
 
 interface PublicProfileViewProps {
   profile: UserProfile;
 }
 
 export default function PublicProfileView({ profile }: PublicProfileViewProps) {
-  const accountType = profile.accountType ?? "user";
+  const accountType = profile.accountType ?? "talent";
   const business = profile.businessProfile;
   const agency = profile.agencyProfile;
   const displayName =
@@ -57,6 +58,9 @@ export default function PublicProfileView({ profile }: PublicProfileViewProps) {
                   <span>{location}</span>
                 </div>
               )}
+              <div className="mt-6">
+                <ProfileCTA targetId={profile.uid} targetRole={accountType} />
+              </div>
             </div>
           </div>
         </section>
@@ -87,7 +91,7 @@ export default function PublicProfileView({ profile }: PublicProfileViewProps) {
           </div>
         )}
 
-        {accountType === "user" && (
+        {accountType === "talent" && (
           <div className="grid gap-6 py-8 md:grid-cols-2">
             <ProfileSection title="Work Vibe">
               <TagList tags={[...(profile.workVibe?.style ?? []), ...(profile.workVibe?.culture ?? [])]} />

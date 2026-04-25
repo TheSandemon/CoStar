@@ -6,9 +6,6 @@ export const GEMINI_CONFIG = {
   // Live (real-time streaming) model — used for the voice interview session
   liveModel: 'models/gemini-3.1-flash-live-preview',
 
-  // Standard (non-streaming) model — used for post-interview feedback scoring
-  feedbackModel: 'gemini-3.1-flash-live-preview',
-
   // WebSocket host for the Live API
   liveApiHost: 'generativelanguage.googleapis.com',
 
@@ -22,9 +19,6 @@ export const GEMINI_CONFIG = {
   // Audio sample rates
   inputSampleRate: 16000,   // mic capture rate (PCM sent to Gemini)
   outputSampleRate: 24000,  // playback rate (PCM received from Gemini)
-
-  // Feedback generation
-  feedbackTemperature: 0.3,
 
   // Question count per difficulty level (replaces time limit)
   questionCount: {

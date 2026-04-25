@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const allUsersSnap = await db.collection('users').get();
     const counts = {
       totalUsers: allUsersSnap.size,
-      user: 0,
+      talent: 0,
       business: 0,
       agency: 0,
       admin: 0,
@@ -28,8 +28,9 @@ export async function GET(req: NextRequest) {
 
     allUsersSnap.forEach((doc) => {
       const data = doc.data();
-      if (data.accountType && data.accountType in counts) {
-        counts[data.accountType as 'user'] += 1;
+      const accountType = normalizeAccountType(data.accountType);
+      if (accountType && accountType in counts) {
+        counts[accountType as keyof typeof counts] += 1;
       }
       if (data.moderationStatus === 'suspended' || data.disabled === true) {
         counts.suspended += 1;
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
         uid: doc.id,
         email: data.email ?? null,
         displayName: data.displayName ?? '',
-        accountType: data.accountType ?? null,
+        accountType: normalizeAccountType(data.accountType),
         accountTypeLocked: Boolean(data.accountTypeLocked),
         publicProfileEnabled: data.publicProfileEnabled !== false,
         moderationStatus: data.moderationStatus ?? 'active',
@@ -63,4 +64,12 @@ function serializeTimestamp(value: any): string | null {
   if (typeof value.toDate === 'function') return value.toDate().toISOString();
   if (value instanceof Date) return value.toISOString();
   return String(value);
+}
+
+function normalizeAccountType(value: unknown): 'talent' | 'business' | 'agency' | 'admin' | 'owner' | null {
+  if (value === 'user') return 'talent';
+  if (['talent', 'business', 'agency', 'admin', 'owner'].includes(String(value))) {
+    return value as 'talent' | 'business' | 'agency' | 'admin' | 'owner';
+  }
+  return null;
 }

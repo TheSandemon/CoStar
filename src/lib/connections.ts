@@ -1,77 +1,135 @@
 import {
   doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  deleteDoc,
-  getDocs,
   collection,
   query,
   where,
+  getDocs,
+  setDoc,
+  updateDoc,
   serverTimestamp,
+  deleteDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
+import { AccountType } from './profile';
 
-export type ConnectionStatus = 'pending' | 'connected';
+export type ConnectionStatus = 'pending' | 'accepted' | 'rejected';
 
-export interface Connection {
-  uid1: string; // lexicographically smaller uid
-  uid2: string;
-  initiatedBy: string;
+export interface ConnectionRecord {
+  id: string;
+  requesterId: string;
+  targetId: string;
+  requesterRole: AccountType;
+  targetRole: AccountType;
   status: ConnectionStatus;
   createdAt: any;
   updatedAt: any;
 }
 
-// Canonical doc ID: always sort so uid1 < uid2
-function connectionDocId(a: string, b: string): string {
-  return [a, b].sort().join('_');
+export interface Connection {
+  id: string;
+  initiatedBy: string;
+  recipientId: string;
+  status: 'pending' | 'connected';
 }
 
-export async function getConnectionStatus(
-  uidA: string,
-  uidB: string
-): Promise<Connection | null> {
-  if (!db) throw new Error('Firestore not initialized');
-  const ref = doc(db, 'connections', connectionDocId(uidA, uidB));
-  const snap = await getDoc(ref);
-  return snap.exists() ? (snap.data() as Connection) : null;
+export function getConnectionLabel(viewerRole: AccountType, targetRole: AccountType, status?: ConnectionStatus | null): string {
+  if (viewerRole === 'talent' && targetRole === 'talent') return status === 'accepted' ? 'Synced' : 'Sync';
+  if (viewerRole === 'talent' && targetRole === 'business') return status ? 'Tracking' : 'Track'; // one-way
+  if (viewerRole === 'business' && targetRole === 'talent') return status === 'accepted' ? 'Aligned' : 'Shortlist';
+  if (viewerRole === 'talent' && targetRole === 'agency') return status === 'accepted' ? 'Represented' : 'Apply';
+  if (viewerRole === 'agency' && targetRole === 'talent') return status === 'accepted' ? 'Roster' : 'Scout';
+  if (viewerRole === 'agency' && targetRole === 'business') return status === 'accepted' ? 'Partnered' : 'Partner';
+  return 'Connect';
 }
 
-export async function sendConnect(fromUid: string, toUid: string): Promise<void> {
+export async function getConnection(viewerId: string, targetId: string): Promise<ConnectionRecord | null> {
   if (!db) throw new Error('Firestore not initialized');
-  const [uid1, uid2] = [fromUid, toUid].sort();
-  const ref = doc(db, 'connections', connectionDocId(fromUid, toUid));
-  await setDoc(ref, {
-    uid1,
-    uid2,
-    initiatedBy: fromUid,
-    status: 'pending',
+  const connectionsRef = collection(db, 'connections');
+  
+  // Check if viewer requested target
+  const q1 = query(connectionsRef, where('requesterId', '==', viewerId), where('targetId', '==', targetId));
+  const snap1 = await getDocs(q1);
+  if (!snap1.empty) return { id: snap1.docs[0].id, ...snap1.docs[0].data() } as ConnectionRecord;
+
+  // Check if target requested viewer
+  const q2 = query(connectionsRef, where('requesterId', '==', targetId), where('targetId', '==', viewerId));
+  const snap2 = await getDocs(q2);
+  if (!snap2.empty) return { id: snap2.docs[0].id, ...snap2.docs[0].data() } as ConnectionRecord;
+
+  return null;
+}
+
+export async function getConnectionStatus(viewerId: string, targetId: string): Promise<Connection | null> {
+  const connection = await getConnection(viewerId, targetId);
+  if (!connection) return null;
+
+  return {
+    id: connection.id,
+    initiatedBy: connection.requesterId,
+    recipientId: connection.targetId,
+    status: connection.status === 'accepted' ? 'connected' : 'pending',
+  };
+}
+
+export async function sendConnect(requesterId: string, targetId: string): Promise<void> {
+  await requestConnection(requesterId, targetId, 'talent', 'talent');
+}
+
+export async function acceptConnect(currentUid: string, targetUid: string): Promise<void> {
+  const connection = await getConnection(currentUid, targetUid);
+  if (!connection) return;
+  await updateConnectionStatus(connection.id, 'accepted');
+}
+
+export async function removeConnect(currentUid: string, targetUid: string): Promise<void> {
+  const connection = await getConnection(currentUid, targetUid);
+  if (!connection) return;
+  await removeConnection(connection.id);
+}
+
+export async function requestConnection(
+  requesterId: string,
+  targetId: string,
+  requesterRole: AccountType,
+  targetRole: AccountType,
+  autoAccept: boolean = false
+): Promise<void> {
+  if (!db) throw new Error('Firestore not initialized');
+  const connectionsRef = collection(db, 'connections');
+  const existing = await getConnection(requesterId, targetId);
+  
+  if (existing) {
+    if (existing.status === 'pending' && autoAccept) {
+       await updateDoc(doc(db, 'connections', existing.id), {
+         status: 'accepted',
+         updatedAt: serverTimestamp()
+       });
+    }
+    return;
+  }
+  
+  const newRef = doc(connectionsRef);
+  await setDoc(newRef, {
+    id: newRef.id,
+    requesterId,
+    targetId,
+    requesterRole,
+    targetRole,
+    status: autoAccept ? 'accepted' : 'pending',
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
   });
 }
 
-export async function acceptConnect(fromUid: string, toUid: string): Promise<void> {
+export async function updateConnectionStatus(connectionId: string, status: ConnectionStatus): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
-  const ref = doc(db, 'connections', connectionDocId(fromUid, toUid));
-  await updateDoc(ref, { status: 'connected', updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, 'connections', connectionId), {
+    status,
+    updatedAt: serverTimestamp()
+  });
 }
 
-export async function removeConnect(uidA: string, uidB: string): Promise<void> {
+export async function removeConnection(connectionId: string): Promise<void> {
   if (!db) throw new Error('Firestore not initialized');
-  const ref = doc(db, 'connections', connectionDocId(uidA, uidB));
-  await deleteDoc(ref);
-}
-
-// Requires Firestore composite indexes on:
-//   connections: (uid1, status) and (uid2, status)
-export async function getConnections(uid: string): Promise<Connection[]> {
-  if (!db) throw new Error('Firestore not initialized');
-  const col = collection(db, 'connections');
-  const [snap1, snap2] = await Promise.all([
-    getDocs(query(col, where('uid1', '==', uid))),
-    getDocs(query(col, where('uid2', '==', uid))),
-  ]);
-  return [...snap1.docs, ...snap2.docs].map((d) => d.data() as Connection);
+  await deleteDoc(doc(db, 'connections', connectionId));
 }

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Owner role cannot be changed from the admin UI.' }, { status: 400 });
     }
 
-    const nextType = action === 'promote-admin' ? 'admin' : 'user';
+    const nextType = action === 'promote-admin' ? 'admin' : 'talent';
     if (action === 'demote-admin' && data.accountType !== 'admin') {
       return NextResponse.json({ error: 'Only admin accounts can be demoted with this action.' }, { status: 400 });
     }

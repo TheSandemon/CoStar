@@ -4,6 +4,13 @@ import { useState, useRef, useCallback } from 'react';
 import type { AIStatus, AuditionConfig } from '@/lib/audition/types';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
 
+interface FeedbackArgs {
+  score: number;
+  feedback: string;
+  strengths: string[];
+  improvements: string[];
+}
+
 interface UseGeminiLiveSessionOptions {
   onAudioChunk: (base64PCM: string) => void;
   onAITranscript: (text: string, isFinal: boolean) => void;
@@ -11,6 +18,7 @@ interface UseGeminiLiveSessionOptions {
   onTurnComplete: () => void;
   onInterviewComplete: () => void;
   onError: (msg: string) => void;
+  onFeedback?: (args: FeedbackArgs) => void;
 }
 
 export interface GeminiSessionOverrides {
@@ -32,6 +40,7 @@ export function useGeminiLiveSession({
   onTurnComplete,
   onInterviewComplete,
   onError,
+  onFeedback,
 }: UseGeminiLiveSessionOptions) {
   const [aiStatus, setAIStatus] = useState<AIStatus>('idle');
   const [isConnected, setIsConnected] = useState(false);
@@ -44,6 +53,7 @@ export function useGeminiLiveSession({
     onTurnComplete,
     onInterviewComplete,
     onError,
+    onFeedback: onFeedback ?? null as ((args: FeedbackArgs) => void) | null,
   });
   callbacksRef.current = {
     onAudioChunk,
@@ -52,6 +62,7 @@ export function useGeminiLiveSession({
     onTurnComplete,
     onInterviewComplete,
     onError,
+    onFeedback: onFeedback ?? null,
   };
 
   const handleMessage = useCallback((data: Record<string, unknown>) => {
@@ -67,6 +78,19 @@ export function useGeminiLiveSession({
     if (data.setupComplete) {
       console.log('[GeminiLive] Received setupComplete');
       setAIStatus('listening');
+      return;
+    }
+
+    // Tool calls arrive at the top level, not inside serverContent
+    if (data.toolCall) {
+      const calls = (data.toolCall as Record<string, unknown>).functionCalls as Array<{ name: string; args: unknown }> | undefined;
+      if (calls) {
+        for (const call of calls) {
+          if (call.name === 'generate_feedback' && callbacksRef.current.onFeedback) {
+            callbacksRef.current.onFeedback(call.args as FeedbackArgs);
+          }
+        }
+      }
       return;
     }
 
@@ -256,6 +280,16 @@ export function useGeminiLiveSession({
     wsRef.current.send(JSON.stringify(msg));
   }, []);
 
+  const sendClientText = useCallback((text: string) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({
+      clientContent: {
+        turns: [{ role: 'user', parts: [{ text }] }],
+        turnComplete: true,
+      },
+    }));
+  }, []);
+
   const disconnect = useCallback(() => {
     wsRef.current?.close();
     wsRef.current = null;
@@ -263,5 +297,5 @@ export function useGeminiLiveSession({
     setAIStatus('idle');
   }, []);
 
-  return { aiStatus, isConnected, connect, sendAudioChunk, disconnect };
+  return { aiStatus, isConnected, connect, sendAudioChunk, sendClientText, disconnect };
 }

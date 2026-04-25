@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { isPrivilegedAccountType } from '@/lib/profile';
 import { LogOut, User, Mic, Shield } from 'lucide-react';
 import SiteSearch from './SiteSearch';
 
@@ -10,6 +11,13 @@ export default function NavHeader() {
   const { user, logout, loading } = useAuth();
   const router = useRouter();
   const accountType = user?.accountType ?? null;
+  const profileHref = user
+    ? isPrivilegedAccountType(accountType)
+      ? '/account'
+      : accountType
+      ? '/dashboard/settings'
+      : '/onboarding'
+    : '/sign-in';
 
   const handleLogout = async () => {
     await logout();
@@ -70,7 +78,7 @@ export default function NavHeader() {
           {user ? (
             <>
               <Link
-                href="/dashboard"
+                href={profileHref}
                 className="flex items-center gap-2 text-slate-300 hover:text-white transition-colors"
               >
                 <User size={18} />

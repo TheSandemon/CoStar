@@ -70,7 +70,7 @@ function SearchResultsContent() {
 
   const getIconForType = (type: SearchResultType) => {
     switch (type) {
-      case 'user': return <User size={20} className="text-blue-400" />;
+      case 'talent': return <User size={20} className="text-blue-400" />;
       case 'agency': return <Building2 size={20} className="text-violet-400" />;
       case 'business': return <Building2 size={20} className="text-amber-400" />;
       case 'job': return <Briefcase size={20} className="text-emerald-400" />;
@@ -80,7 +80,7 @@ function SearchResultsContent() {
 
   const tabs: { id: SearchResultType; label: string }[] = [
     { id: 'all', label: 'All Results' },
-    { id: 'user', label: 'Talent' },
+    { id: 'talent', label: 'Talent' },
     { id: 'agency', label: 'Agencies' },
     { id: 'business', label: 'Companies' },
     { id: 'job', label: 'Jobs' },

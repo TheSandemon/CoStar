@@ -71,7 +71,7 @@ export default function Home() {
               <div className="w-14 h-14 bg-amber-500/20 rounded-xl flex items-center justify-center mb-6 group-hover:bg-amber-500/30 transition-colors">
                 <User className="text-amber-400" size={28} />
               </div>
-              <h3 className="text-2xl font-bold text-white mb-4">Job Seeker</h3>
+              <h3 className="text-2xl font-bold text-white mb-4">Talent</h3>
               <p className="text-slate-400 mb-6">
                 Build your comprehensive professional profile. Connect social accounts, showcase your work vibe, and get matched with companies that fit you.
               </p>
@@ -89,7 +89,7 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-              <Link href="/sign-up?type=user" className="mt-8 block w-full py-3 bg-amber-500 text-slate-900 rounded-lg font-semibold text-center hover:bg-amber-400 transition-colors">
+              <Link href="/sign-up?type=talent" className="mt-8 block w-full py-3 bg-amber-500 text-slate-900 rounded-lg font-semibold text-center hover:bg-amber-400 transition-colors">
                 Create Free Profile
               </Link>
             </div>
@@ -129,12 +129,12 @@ export default function Home() {
               </div>
               <h3 className="text-2xl font-bold text-white mb-4">Agency</h3>
               <p className="text-slate-400 mb-6">
-                Coach, prep, and place job seekers with AI-powered interview practice. Build connections and track candidate progress.
+                Coach, prep, and place talent with AI-powered interview practice. Build connections and track candidate progress.
               </p>
               <ul className="space-y-3">
                 {[
                   "AI Interview Coaching",
-                  "Job Seeker Placement",
+                  "Talent Placement",
                   "Audition Sessions",
                   "Connect & Network",
                   "Performance Insights",

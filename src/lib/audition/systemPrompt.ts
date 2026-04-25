@@ -32,7 +32,7 @@ function conductRules(questionCount: number): string {
 - If the candidate gives an unclear answer, ask ONE targeted clarifying follow-up.
 - Keep your own spoken turns concise — this is a voice conversation, not an essay.
 - Ask exactly ${questionCount} questions total. No more, no less.
-- When you have asked your last question and received a response, wrap up professionally: thank the candidate, give a brief closing statement, then output the exact word INTERVIEW_COMPLETE on its own line so the system can end the session.`;
+- When you have asked your last question and received a response, wrap up professionally: thank the candidate, give a brief closing statement, then output the exact word INTERVIEW_COMPLETE on its own line. You will then be asked to evaluate the candidate — you MUST immediately call the generate_feedback tool with your honest assessment.`;
 }
 
 export function buildSystemPrompt(job: JobData, config: AuditionConfig, voiceName = 'Alex'): string {

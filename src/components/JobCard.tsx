@@ -1,6 +1,7 @@
 'use client';
 
 import { JobData } from '@/lib/jobs';
+import { serializeCareerjetJob } from '@/lib/careerjet';
 import { MapPin, Clock, DollarSign, Briefcase, Globe, Bookmark, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -81,7 +82,12 @@ export default function JobCard({ job, showCompany = true, onSave, onApply }: Jo
   const salary = formatSalary();
 
   // Generate link - use jobId (not slug since slugs aren't persistent)
-  const jobLink = job.jobId ? `/jobs/${job.jobId}` : '#';
+  const jobLink = job.jobId
+    ? {
+        pathname: `/jobs/${job.jobId}`,
+        query: { job: serializeCareerjetJob(job) },
+      }
+    : '#';
 
   return (
     <Link href={jobLink}>

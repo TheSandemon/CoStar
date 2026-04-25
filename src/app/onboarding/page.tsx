@@ -196,11 +196,11 @@ export default function OnboardingPage() {
           user.uid
         ),
         accountType,
-        role: accountType ?? "user",
+        role: accountType ?? "talent",
         headline: headline.trim() || defaultHeadline(accountType),
         location: location.trim(),
         socialConnections,
-        workVibe: accountType === "user" ? workVibe : emptyWorkVibe,
+        workVibe: accountType === "talent" ? workVibe : emptyWorkVibe,
         businessProfile: accountType === "business" ? {
           companyName: companyName.trim(),
           website: companyWebsite.trim(),
@@ -267,9 +267,9 @@ export default function OnboardingPage() {
 
             <div className="space-y-4">
               <button
-                onClick={() => setAccountType("user")}
+                onClick={() => setAccountType("talent")}
                 className={`w-full p-6 rounded-xl border-2 text-left transition-all ${
-                  accountType === "user"
+                  accountType === "talent"
                     ? "border-amber-500 bg-amber-500/10"
                     : "border-white/10 hover:border-white/30"
                 }`}
@@ -279,7 +279,7 @@ export default function OnboardingPage() {
                     <User className="text-amber-400" size={24} />
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold text-white">Job Seeker</h3>
+                    <h3 className="text-xl font-semibold text-white">Talent</h3>
                     <p className="text-slate-400">Build your profile and get matched with your dream job</p>
                   </div>
                 </div>
@@ -318,7 +318,7 @@ export default function OnboardingPage() {
                   </div>
                   <div>
                     <h3 className="text-xl font-semibold text-white">Agency</h3>
-                    <p className="text-slate-400">Prep and place job seekers with AI-powered coaching and connections</p>
+                    <p className="text-slate-400">Prep and place talent with AI-powered coaching and connections</p>
                   </div>
                 </div>
               </button>
@@ -738,5 +738,5 @@ export default function OnboardingPage() {
 function defaultHeadline(accountType: AccountType): string {
   if (accountType === "business") return "Employer on CoStar";
   if (accountType === "agency") return "Talent agency on CoStar";
-  return "Professional on CoStar";
+  return "Talent on CoStar";
 }

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, CheckCircle, TrendingUp, Star } from 'lucide-react';
+import { ChevronLeft, CheckCircle, TrendingUp, Star, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAuditionSessions } from '@/hooks/useAuditionSessions';
 import { ScoreRing } from './ScoreRing';
@@ -31,12 +31,14 @@ interface FeedbackReportScreenProps {
 
 export function FeedbackReportScreen({ sessionId }: FeedbackReportScreenProps) {
   const router = useRouter();
-  const { user } = useAuth() as { user: { uid: string } | null };
-  const { getSession } = useAuditionSessions(user?.uid ?? null);
+  const { user } = useAuth() as { user: { uid: string; getIdToken: () => Promise<string> } | null };
+  const { getSession, saveSession } = useAuditionSessions(user?.uid ?? null);
 
   const [session, setSession] = useState<AuditionSession | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [ultraLoading, setUltraLoading] = useState(false);
+  const [ultraError, setUltraError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -53,6 +55,40 @@ export function FeedbackReportScreen({ sessionId }: FeedbackReportScreenProps) {
   }, [getSession, sessionId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleUltraFeedback = useCallback(async () => {
+    if (!user || !session) return;
+    setUltraLoading(true);
+    setUltraError(null);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/audition/ultra-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          sessionId: session.id,
+          transcript: session.transcript,
+          jobTitle: session.jobTitle,
+          companyName: session.companyName,
+          focus: session.config.focus,
+          difficulty: session.config.difficulty,
+          score: session.score,
+          feedback: session.feedback,
+          strengths: session.strengths,
+          improvements: session.improvements,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      const { ultraFeedback } = await res.json();
+      const updated = { ...session, ultraFeedback };
+      setSession(updated);
+      await saveSession(updated);
+    } catch {
+      setUltraError('Could not generate Ultra Feedback. Check your API key in Settings.');
+    } finally {
+      setUltraLoading(false);
+    }
+  }, [user, session, saveSession]);
 
   if (loading) {
     return (
@@ -142,6 +178,41 @@ export function FeedbackReportScreen({ sessionId }: FeedbackReportScreenProps) {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Ultra Feedback */}
+        {session.ultraFeedback ? (
+          <div className="space-y-3">
+            <h3 className="text-slate-300 text-sm font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" /> Ultra Feedback
+            </h3>
+            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{session.ultraFeedback}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <button
+              onClick={handleUltraFeedback}
+              disabled={ultraLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-bold transition-all border border-amber-500/30"
+            >
+              {ultraLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating Ultra Feedback…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  Ultra Feedback
+                </>
+              )}
+            </button>
+            {ultraError && (
+              <p className="text-red-400 text-xs text-center">{ultraError}</p>
+            )}
           </div>
         )}
 

@@ -63,7 +63,7 @@ export default function SiteSearch() {
 
   const getIconForType = (type: SearchResultType) => {
     switch (type) {
-      case 'user': return <User size={16} className="text-blue-400" />;
+      case 'talent': return <User size={16} className="text-blue-400" />;
       case 'agency': return <Building2 size={16} className="text-violet-400" />;
       case 'business': return <Building2 size={16} className="text-amber-400" />;
       case 'job': return <Briefcase size={16} className="text-emerald-400" />;
@@ -116,7 +116,7 @@ export default function SiteSearch() {
               className="bg-transparent text-xs text-slate-400 py-2 pl-2 pr-6 appearance-none focus:outline-none cursor-pointer"
             >
               <option value="all">All</option>
-              <option value="user">Users</option>
+              <option value="talent">Talent</option>
               <option value="agency">Agencies</option>
               <option value="business">Businesses</option>
               <option value="job">Jobs</option>

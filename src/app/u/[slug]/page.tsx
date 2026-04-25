@@ -13,7 +13,7 @@ export default function PublicUserProfilePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    getPublicProfileBySlugOrUid(slug, "user")
+    getPublicProfileBySlugOrUid(slug)
       .then(setProfile)
       .catch(() => setProfile(null))
       .finally(() => setIsLoading(false));

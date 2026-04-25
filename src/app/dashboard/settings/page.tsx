@@ -4,19 +4,25 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { GithubAuthProvider, deleteUser, linkWithPopup, updateProfile } from "firebase/auth";
 import { deleteDoc, doc } from "firebase/firestore";
-import { Loader2, Save, Github, Linkedin, CheckCircle2, AlertCircle, Trash2 } from "lucide-react";
+import { Loader2, Save, Github, Linkedin, CheckCircle2, AlertCircle, Trash2, Upload, Camera } from "lucide-react";
 import NavHeader from "@/components/NavHeader";
 import { useAuth } from "@/context/AuthContext";
 import { auth, db } from "@/lib/firebase";
+import { uploadProfileImage } from "@/lib/storage";
 import {
   accountTypeLabels,
   createSlug,
   emptyWorkVibe,
+  getOperatorPreviewProfile,
   getSocialConnection,
   getUserProfile,
+  isPrivilegedAccountType,
+  publicAccountTypes,
+  saveOperatorPreviewProfile,
   saveTypeSpecificProfile,
   upsertSocialConnection,
   type AccountType,
+  type PublicAccountType,
   type SocialConnection,
   type WorkVibe,
 } from "@/lib/profile";
@@ -24,6 +30,7 @@ import {
 export default function AccountSettingsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const isOperator = isPrivilegedAccountType(user?.accountType);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -33,7 +40,10 @@ export default function AccountSettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [accountType, setAccountType] = useState<AccountType | null>(null);
+  const [previewType, setPreviewType] = useState<PublicAccountType>("talent");
   const [displayName, setDisplayName] = useState("");
+  const [publicProfileEnabled, setPublicProfileEnabled] = useState(true);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [headline, setHeadline] = useState("");
   const [location, setLocation] = useState("");
   const [linkedInUrl, setLinkedInUrl] = useState("");
@@ -62,12 +72,15 @@ export default function AccountSettingsPage() {
 
       setIsLoading(true);
       try {
-        const profile = await getUserProfile(user.uid);
+        const profile = isOperator
+          ? await getOperatorPreviewProfile(user.uid, previewType, user)
+          : await getUserProfile(user.uid);
         setAccountType(profile?.accountType ?? null);
-        if (profile && !profile.accountType) {
+        if (!isOperator && profile && !profile.accountType) {
           router.push("/onboarding");
           return;
         }
+        setPublicProfileEnabled(profile?.publicProfileEnabled ?? true);
         setDisplayName(profile?.displayName ?? user.displayName ?? "");
         setHeadline(profile?.headline ?? "");
         setLocation(profile?.location ?? "");
@@ -95,7 +108,7 @@ export default function AccountSettingsPage() {
     if (!authLoading) {
       loadProfile();
     }
-  }, [authLoading, user]);
+  }, [authLoading, user, isOperator, previewType, router]);
 
   const githubConnection = getSocialConnection({ socialConnections }, "github");
   const linkedInConnection = getSocialConnection({ socialConnections }, "linkedin");
@@ -118,11 +131,12 @@ export default function AccountSettingsPage() {
         return;
       }
 
-      await saveTypeSpecificProfile(user.uid, accountType, {
+      const profileUpdates = {
         uid: user.uid,
         email: user.email,
         displayName: trimmedName || user.displayName,
         photoURL: user.photoURL,
+        publicProfileEnabled,
         slug: createSlug(
           accountType === "business" ? companyName : accountType === "agency" ? agencyName : trimmedName,
           user.uid
@@ -130,7 +144,7 @@ export default function AccountSettingsPage() {
         headline: headline.trim(),
         location: location.trim(),
         socialConnections: nextConnections,
-        workVibe: accountType === "user" ? workVibe : emptyWorkVibe,
+        workVibe: accountType === "talent" ? workVibe : emptyWorkVibe,
         businessProfile: accountType === "business" ? {
           companyName: companyName.trim(),
           website: companyWebsite.trim(),
@@ -151,9 +165,15 @@ export default function AccountSettingsPage() {
           specialties: splitCsv(agencySpecialties),
           services: splitCsv(agencyServices),
         } : undefined,
-      });
+      };
+
+      if (isOperator) {
+        await saveOperatorPreviewProfile(user.uid, accountType as PublicAccountType, profileUpdates);
+      } else {
+        await saveTypeSpecificProfile(user.uid, accountType, profileUpdates);
+      }
       setSocialConnections(nextConnections);
-      setMessage("Settings saved.");
+      setMessage(isOperator ? "Preview settings saved." : "Settings saved.");
     } catch (err) {
       console.error("Failed to save settings:", err);
       setError("Could not save settings. Check your connection and try again.");
@@ -247,6 +267,24 @@ export default function AccountSettingsPage() {
     });
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user || !auth?.currentUser) return;
+    
+    setIsUploadingImage(true);
+    setError(null);
+    try {
+      const url = await uploadProfileImage(user.uid, file);
+      await updateProfile(auth.currentUser, { photoURL: url });
+      setMessage("Profile image updated. Save settings to apply changes everywhere.");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to upload image.");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
   const deleteAccount = async () => {
     if (!auth?.currentUser || !user || !db) {
       setError("Sign in again before deleting your account.");
@@ -295,8 +333,33 @@ export default function AccountSettingsPage() {
       <main className="max-w-4xl mx-auto px-6 py-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-white mb-2">Account Settings</h1>
-          <p className="text-slate-400">Manage your profile details and professional connections.</p>
+          <p className="text-slate-400">
+            {isOperator
+              ? "Edit private sandbox versions of each public account path."
+              : "Manage your profile details and professional connections."}
+          </p>
         </div>
+
+        {isOperator && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <div className="mb-3 font-semibold text-amber-200">Preview account path</div>
+            <div className="flex flex-wrap gap-2">
+              {publicAccountTypes.map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setPreviewType(type)}
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                    previewType === type
+                      ? "bg-amber-500 text-slate-900"
+                      : "bg-slate-900 text-slate-300 hover:bg-white/10 hover:text-white"
+                  }`}
+                >
+                  {accountTypeLabels[type]}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {(message || error) && (
           <div
@@ -313,7 +376,40 @@ export default function AccountSettingsPage() {
 
         <div className="space-y-6">
           <section className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
-            <h2 className="text-xl font-bold text-white mb-6">Profile</h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">Profile</h2>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <span className="text-sm font-medium text-slate-300">Public Profile</span>
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={publicProfileEnabled}
+                    onChange={(e) => setPublicProfileEnabled(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`block w-10 h-6 rounded-full transition-colors ${publicProfileEnabled ? 'bg-amber-500' : 'bg-slate-700'}`}></div>
+                  <div className={`absolute left-1 top-1 w-4 h-4 rounded-full bg-white transition-transform ${publicProfileEnabled ? 'translate-x-4' : ''}`}></div>
+                </div>
+              </label>
+            </div>
+            
+            <div className="mb-6 flex items-center gap-4">
+              <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full border border-white/10 bg-slate-900 relative">
+                {auth?.currentUser?.photoURL ? (
+                  <img src={auth.currentUser.photoURL} alt="Avatar" className="w-full h-full object-cover" />
+                ) : (
+                  <Camera className="w-8 h-8 text-slate-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                )}
+              </div>
+              <div>
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-white/10 bg-slate-900 px-4 py-2 font-medium text-white transition-colors hover:bg-slate-800">
+                  {isUploadingImage && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Upload Image
+                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploadingImage} />
+                </label>
+              </div>
+            </div>
+
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-white mb-2 font-medium">Full Name</label>
@@ -455,7 +551,7 @@ export default function AccountSettingsPage() {
             </section>
           )}
 
-          {accountType === "user" && (
+          {accountType === "talent" && (
           <section id="connections" className="bg-slate-800/50 border border-white/10 rounded-xl p-6">
             <h2 className="text-xl font-bold text-white mb-6">Connections</h2>
             <div className="space-y-4">
@@ -571,6 +667,7 @@ export default function AccountSettingsPage() {
             </button>
           </div>
 
+          {!isOperator && (
           <section className="bg-red-500/5 border border-red-500/20 rounded-xl p-6">
             <h2 className="text-xl font-bold text-white mb-2">Delete Account</h2>
             <p className="text-slate-400 mb-4">
@@ -585,6 +682,7 @@ export default function AccountSettingsPage() {
               Delete Account
             </button>
           </section>
+          )}
         </div>
       </main>
     </div>

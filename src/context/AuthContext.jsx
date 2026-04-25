@@ -84,7 +84,7 @@ export const AuthProvider = ({ children }) => {
                         displayName: currentUser.displayName,
                         photoURL: currentUser.photoURL,
                         accountType: null,
-                        role: 'user',
+                        role: 'talent',
                         getIdToken: () => currentUser.getIdToken(),
                     });
                     setLoading(false);
@@ -123,7 +123,7 @@ export const AuthProvider = ({ children }) => {
                     displayName: currentUser.displayName,
                     photoURL: currentUser.photoURL,
                     accountType: null,
-                    role: 'user',
+                    role: 'talent',
                     getIdToken: () => currentUser.getIdToken(),
                 });
             } finally {

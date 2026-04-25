@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { getScrapedJobById } from '@/lib/jobs';
+import { deserializeCareerjetJob } from '@/lib/careerjet';
 import { buildSystemPrompt, buildSystemPromptFromText } from '@/lib/audition/systemPrompt';
 import type {
   AuditionPhase,
@@ -37,8 +38,11 @@ const DEFAULT_CONFIG: AuditionConfig = {
   resume: '',
 };
 
+type FeedbackArgs = { score: number; feedback: string; strengths: string[]; improvements: string[] };
+
 export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth() as { user: { uid: string; getIdToken: () => Promise<string> } | null };
 
   const [phase, setPhase] = useState<AuditionPhase>('setup');
@@ -56,19 +60,36 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const interviewStartTimeRef = useRef<number>(0);
   const sessionIdRef = useRef<string>('');
   const pendingEndRef = useRef(false);
+  const feedbackResolveRef = useRef<((args: FeedbackArgs) => void) | null>(null);
+  const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    if (mode === 'job' && jobId) {
-      getScrapedJobById(jobId).then((j) => setJob(j ?? null));
+    if (mode !== 'job' || !jobId) return;
+
+    const payloadJob = deserializeCareerjetJob(searchParams.get('job'));
+    if (payloadJob && payloadJob.jobId === jobId) {
+      setJob(payloadJob);
+      return;
     }
-  }, [mode, jobId]);
+
+    getScrapedJobById(jobId).then((j) => setJob(j ?? null));
+  }, [mode, jobId, searchParams]);
 
   const { entries, addPartial, finalizeLast, reset: resetTranscript } = useTranscript();
 
   const { isPlaying, enqueueChunk, stop: stopPlayback, close: closePlayback, analyserRef } =
     useAudioPlayback();
 
-  const { aiStatus, isConnected, connect, sendAudioChunk, disconnect } = useGeminiLiveSession({
+  const onFeedback = useCallback((args: FeedbackArgs) => {
+    if (feedbackTimeoutRef.current) {
+      clearTimeout(feedbackTimeoutRef.current);
+      feedbackTimeoutRef.current = null;
+    }
+    feedbackResolveRef.current?.(args);
+    feedbackResolveRef.current = null;
+  }, []);
+
+  const { aiStatus, isConnected, connect, sendAudioChunk, sendClientText, disconnect } = useGeminiLiveSession({
     onAudioChunk: enqueueChunk,
     onAITranscript: (text, isFinal) => {
       addPartial('ai', text);
@@ -86,9 +107,19 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       pendingEndRef.current = true;
     },
     onError: (msg) => {
-      setSessionError(msg);
-      setPhase('setup');
+      if (feedbackResolveRef.current) {
+        if (feedbackTimeoutRef.current) {
+          clearTimeout(feedbackTimeoutRef.current);
+          feedbackTimeoutRef.current = null;
+        }
+        feedbackResolveRef.current({ score: 0, feedback: 'Connection closed before evaluation completed.', strengths: [], improvements: [] });
+        feedbackResolveRef.current = null;
+      } else {
+        setSessionError(msg);
+        setPhase('setup');
+      }
     },
+    onFeedback,
   });
 
   const audioCapture = useAudioCapture({
@@ -164,50 +195,37 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
 
   const handleEndInterview = useCallback(async () => {
     setPhase('ending');
-    disconnect();
     audioCapture.stopCapture();
     stopPlayback();
 
     const durationSeconds = Math.round((Date.now() - interviewStartTimeRef.current) / 1000);
     const finalEntries = entries.map((e) => ({ ...e, isFinal: true }));
-
     const resolvedTitle = mode === 'freeform' ? 'Custom Role' : (job?.title ?? 'Unknown Role');
     const resolvedCompany = mode === 'freeform' ? '' : (job?.companyName ?? 'Unknown Company');
 
-    try {
-      const idToken = user ? await user.getIdToken() : '';
-      const res = await fetch('/api/audition/feedback', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
-        },
-        body: JSON.stringify({
-          transcript: finalEntries,
-          jobTitle: resolvedTitle,
-          companyName: resolvedCompany,
-          focus: config.focus,
-          difficulty: config.difficulty,
-        }),
-      });
+    const feedback = await new Promise<FeedbackArgs>((resolve) => {
+      feedbackResolveRef.current = resolve;
+      feedbackTimeoutRef.current = setTimeout(() => {
+        feedbackResolveRef.current = null;
+        resolve({ score: 0, feedback: 'The AI did not complete the evaluation in time.', strengths: [], improvements: [] });
+      }, 60000);
+      sendClientText('The interview is now over. Please stop speaking and immediately call the generate_feedback tool to evaluate my performance.');
+    });
 
-      const feedback = res.ok
-        ? ((await res.json()) as { score: number; feedback: string; strengths: string[]; improvements: string[] })
-        : { score: 0, feedback: 'Could not generate feedback.', strengths: [], improvements: [] };
+    disconnect();
 
-      const sessionResults: AuditionResults = {
-        transcript: finalEntries,
-        score: feedback.score,
-        feedback: feedback.feedback,
-        strengths: feedback.strengths,
-        improvements: feedback.improvements,
-        durationSeconds,
-      };
+    const sessionResults: AuditionResults = {
+      transcript: finalEntries,
+      score: feedback.score,
+      feedback: feedback.feedback,
+      strengths: feedback.strengths,
+      improvements: feedback.improvements,
+      durationSeconds,
+    };
+    setResults(sessionResults);
 
-      setResults(sessionResults);
-
-      // Persist session to Firestore
-      if (user) {
+    if (user) {
+      try {
         await saveSession({
           id: sessionIdRef.current,
           userId: user.uid,
@@ -224,20 +242,13 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
           improvements: feedback.improvements,
           durationSeconds,
         });
+      } catch {
+        // save failure is non-fatal
       }
-    } catch {
-      setResults({
-        transcript: finalEntries,
-        score: 0,
-        feedback: 'Interview complete. Feedback unavailable.',
-        strengths: [],
-        improvements: [],
-        durationSeconds,
-      });
     }
 
     setPhase('results');
-  }, [disconnect, audioCapture, stopPlayback, entries, job, jobText, mode, config, settings, user, jobId, saveSession]);
+  }, [disconnect, audioCapture, stopPlayback, sendClientText, entries, job, mode, config, settings, user, jobId, saveSession]);
 
   useEffect(() => {
     if (pendingEndRef.current && !isPlaying) {

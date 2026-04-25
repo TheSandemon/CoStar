@@ -1,4 +1,4 @@
-export type SearchResultType = 'all' | 'user' | 'agency' | 'business' | 'job';
+export type SearchResultType = 'all' | 'talent' | 'agency' | 'business' | 'job';
 
 export interface SearchResult {
   id: string;
