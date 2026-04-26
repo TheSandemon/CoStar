@@ -51,6 +51,7 @@ export function useGeminiLiveSession({
   const setupReadyRef = useRef(false);
   const audioEnabledAtRef = useRef(0);
   const firstAudioSentRef = useRef(false);
+  const toolCallInProgressRef = useRef(false);
   const callbacksRef = useRef({
     onAudioChunk,
     onAITranscript,
@@ -101,8 +102,26 @@ export function useGeminiLiveSession({
 
     // Tool calls arrive at the top level, not inside serverContent
     if (data.toolCall) {
-      const calls = (data.toolCall as Record<string, unknown>).functionCalls as Array<{ name: string; args: unknown }> | undefined;
+      toolCallInProgressRef.current = true;
+      const calls = (data.toolCall as Record<string, unknown>).functionCalls as Array<{ id: string; name: string; args: unknown }> | undefined;
       if (calls) {
+        // Send toolResponse back to server to satisfy API requirements
+        const functionResponses = calls.map(call => ({
+          id: call.id,
+          name: call.name,
+          response: { result: "success" }
+        }));
+        
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            toolResponse: {
+              functionResponses
+            }
+          }));
+        }
+
+        toolCallInProgressRef.current = false;
+
         for (const call of calls) {
           if (call.name === 'generate_feedback' && callbacksRef.current.onFeedback) {
             callbacksRef.current.onFeedback(call.args as FeedbackArgs);
@@ -341,6 +360,7 @@ export function useGeminiLiveSession({
     setupReadyRef.current = false;
     audioEnabledAtRef.current = 0;
     firstAudioSentRef.current = false;
+    toolCallInProgressRef.current = false;
     wsRef.current?.close();
     wsRef.current = null;
     setIsConnected(false);
