@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { Mic, ChevronRight, Video, Settings, AlertTriangle, Clock, BookmarkPlus, X, ChevronDown } from 'lucide-react';
 import type { AuditionConfig, Difficulty, AuditionPreset } from '@/lib/audition/types';
-import { GEMINI_CONFIG } from '@/lib/audition/config';
 import type { JobData } from '@/lib/jobs';
 
 interface SetupScreenProps {
@@ -25,10 +24,10 @@ interface SetupScreenProps {
   onLoadPreset: (preset: AuditionPreset) => void;
 }
 
-const DIFFICULTIES: { value: Difficulty; label: string; color: string; questions: number }[] = [
-  { value: 'easy', label: 'Easy', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', questions: GEMINI_CONFIG.questionCount.easy },
-  { value: 'medium', label: 'Medium', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10', questions: GEMINI_CONFIG.questionCount.medium },
-  { value: 'hard', label: 'Hard', color: 'text-red-400 border-red-500/30 bg-red-500/10', questions: GEMINI_CONFIG.questionCount.hard },
+const DIFFICULTIES: { value: Difficulty; label: string; color: string; desc: string }[] = [
+  { value: 'easy', label: 'Easy', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10', desc: 'Foundational' },
+  { value: 'medium', label: 'Medium', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10', desc: 'Balanced' },
+  { value: 'hard', label: 'Hard', color: 'text-red-400 border-red-500/30 bg-red-500/10', desc: 'Advanced' },
 ];
 
 export function SetupScreen({
@@ -217,24 +216,42 @@ export function SetupScreen({
           <p className="text-slate-500 text-xs">The AI will concentrate its questions on this area.</p>
         </div>
 
-        {/* Difficulty */}
+        {/* Difficulty + Questions */}
         <div className="space-y-3">
-          <label className="text-slate-300 text-sm font-medium">Difficulty</label>
-          <div className="flex gap-2">
-            {DIFFICULTIES.map((d) => (
-              <button
-                key={d.value}
-                onClick={() => onConfigChange({ difficulty: d.value })}
-                className={`flex-1 py-2 rounded-xl border text-sm font-semibold transition-all ${
-                  config.difficulty === d.value
-                    ? d.color
-                    : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600'
-                }`}
-              >
-                <span>{d.label}</span>
-                <span className="text-xs font-normal opacity-70"> {d.questions}q</span>
-              </button>
-            ))}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex-1 space-y-2">
+              <label className="text-slate-300 text-sm font-medium">Difficulty</label>
+              <div className="flex gap-2">
+                {DIFFICULTIES.map((d) => (
+                  <button
+                    key={d.value}
+                    onClick={() => onConfigChange({ difficulty: d.value })}
+                    className={`flex-1 py-2 rounded-xl border text-sm font-semibold transition-all ${
+                      config.difficulty === d.value
+                        ? d.color
+                        : 'bg-slate-800/50 border-slate-700/50 text-slate-500 hover:border-slate-600'
+                    }`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-slate-300 text-sm font-medium">Questions</label>
+              <div className="relative">
+                <select
+                  value={config.numQuestions}
+                  onChange={(e) => onConfigChange({ numQuestions: Number(e.target.value) })}
+                  className="appearance-none bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 pr-8 text-slate-200 text-sm focus:outline-none focus:border-amber-500 w-24"
+                >
+                  {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
           </div>
         </div>
 

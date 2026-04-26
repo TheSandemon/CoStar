@@ -15,6 +15,7 @@ export default function Home() {
           </div>
           <nav className="hidden md:flex items-center gap-8">
             <Link href="#features" className="text-slate-300 hover:text-white transition-colors">Features</Link>
+            <Link href="/blog" className="text-slate-300 hover:text-white transition-colors">Blog</Link>
             <Link href="#pricing" className="text-slate-300 hover:text-white transition-colors">Pricing</Link>
             <Link href="/sign-in" className="text-slate-300 hover:text-white transition-colors">Sign In</Link>
             <Link href="/sign-up" className="px-4 py-2 bg-white text-slate-900 rounded-lg font-medium hover:bg-slate-100 transition-colors">

@@ -1,11 +1,22 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Eye, EyeOff } from 'lucide-react';
+import { X, Eye, EyeOff, Mic, MicOff, Radio, AlertTriangle, ChevronDown } from 'lucide-react';
 import type { AuditionSettings } from '@/hooks/useAuditionSettings';
 import { AUDITION_SETTINGS_DEFAULTS } from '@/hooks/useAuditionSettings';
+import type { MicConnectionStatus } from '@/hooks/useAudioCapture';
 
-const VOICES = ['Aoede', 'Charon', 'Fenrir', 'Kore', 'Puck'];
+const VOICE_OPTIONS = [
+  { label: '<Random>', value: '<Random>' },
+  { label: 'Young Male', value: 'Young Male' },
+  { label: 'Young Female', value: 'Young Female' },
+  { label: 'Older Male', value: 'Older Male' },
+  { label: 'Older Female', value: 'Older Female' },
+];
+
+const TONE_OPTIONS = ['<Random>', 'Professional', 'Friendly', 'Formal', 'Casual', 'Direct', 'Empathetic', 'Encouraging', 'Challenging'];
+const STYLE_OPTIONS = ['<Random>', 'Structured', 'Conversational', 'Behavioral', 'Technical', 'Socratic', 'STAR-focused'];
+const NAME_PRESETS = ['<Random>', 'Alex', 'Jordan', 'Sam', 'Taylor', 'Morgan', 'Chris', 'Riley', 'Casey'];
 
 interface AuditionSettingsModalProps {
   current: AuditionSettings;
@@ -13,9 +24,11 @@ interface AuditionSettingsModalProps {
   onClose: () => void;
   onRequestMic?: () => Promise<{ granted: boolean; errorText?: string }>;
   onDiagnoseMic?: () => Promise<string[]>;
+  micStatus?: MicConnectionStatus;
+  micError?: string | null;
 }
 
-export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, onDiagnoseMic }: AuditionSettingsModalProps) {
+export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, onDiagnoseMic, micStatus = 'unknown', micError }: AuditionSettingsModalProps) {
   const [form, setForm] = useState<AuditionSettings>(current);
   const [showKey, setShowKey] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -40,6 +53,9 @@ export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, 
     }
   };
 
+  const statusMeta = getMicStatusMeta(micStatus, micError);
+  const StatusIcon = statusMeta.icon;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4">
       <div className="w-full max-w-md bg-slate-900 border border-slate-700/60 rounded-2xl shadow-2xl p-6 space-y-5">
@@ -55,6 +71,20 @@ export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, 
         {(onRequestMic || onDiagnoseMic) && (
           <div className="space-y-2 pb-2 border-b border-slate-700/50">
             <label className="text-slate-300 text-sm font-medium">Browser Microphone</label>
+            <div className="rounded-xl border border-slate-700/50 bg-slate-800/50 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <StatusIcon className={`h-4 w-4 shrink-0 ${statusMeta.iconClass}`} />
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-white">{statusMeta.title}</div>
+                    <div className="truncate text-xs text-slate-400">{statusMeta.description}</div>
+                  </div>
+                </div>
+                <span className={`shrink-0 rounded-full border px-2 py-0.5 text-xs font-medium ${statusMeta.badgeClass}`}>
+                  {statusMeta.label}
+                </span>
+              </div>
+            </div>
             <div className="flex gap-2">
               {onRequestMic && (
                 <button
@@ -63,7 +93,7 @@ export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, 
                     const res = await onRequestMic();
                     setMicState(
                       res.granted
-                        ? { status: 'success', msg: 'Microphone access granted ✓' }
+                        ? { status: 'success', msg: 'Microphone access granted.' }
                         : { status: 'error', msg: res.errorText || 'Permission denied' }
                     );
                   }}
@@ -127,24 +157,93 @@ export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, 
           </p>
         </div>
 
-        {/* Voice */}
-        <div className="space-y-1.5">
-          <label className="text-slate-300 text-sm font-medium">AI Voice</label>
-          <div className="flex gap-2 flex-wrap">
-            {VOICES.map((v) => (
-              <button
-                key={v}
-                onClick={() => patch('voiceName', v)}
-                className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
-                  form.voiceName === v
-                    ? 'bg-violet-600/20 border-violet-500/50 text-violet-200'
-                    : 'bg-slate-800/50 border-slate-700/50 text-slate-400 hover:border-slate-600'
-                }`}
-              >
-                {v}
-              </button>
-            ))}
+        {/* Interviewer Persona */}
+        <div className="space-y-3 pb-2 border-b border-slate-700/50">
+          <label className="text-slate-300 text-sm font-medium">Interviewer Persona</label>
+
+          <div className="grid grid-cols-2 gap-3">
+            {/* Voice */}
+            <div className="space-y-1">
+              <label className="text-slate-400 text-xs">Voice</label>
+              <div className="relative">
+                <select
+                  value={form.voiceName}
+                  onChange={(e) => patch('voiceName', e.target.value)}
+                  className="w-full appearance-none bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 pr-7 text-slate-200 text-sm focus:outline-none focus:border-amber-500"
+                >
+                  {VOICE_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Tone */}
+            <div className="space-y-1">
+              <label className="text-slate-400 text-xs">Tone</label>
+              <div className="relative">
+                <select
+                  value={form.interviewerTone}
+                  onChange={(e) => patch('interviewerTone', e.target.value)}
+                  className="w-full appearance-none bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 pr-7 text-slate-200 text-sm focus:outline-none focus:border-amber-500"
+                >
+                  {TONE_OPTIONS.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Style */}
+            <div className="space-y-1">
+              <label className="text-slate-400 text-xs">Style</label>
+              <div className="relative">
+                <select
+                  value={form.interviewerStyle}
+                  onChange={(e) => patch('interviewerStyle', e.target.value)}
+                  className="w-full appearance-none bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 pr-7 text-slate-200 text-sm focus:outline-none focus:border-amber-500"
+                >
+                  {STYLE_OPTIONS.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
+
+            {/* Name */}
+            <div className="space-y-1">
+              <label className="text-slate-400 text-xs">Name</label>
+              <div className="relative">
+                <select
+                  value={NAME_PRESETS.includes(form.interviewerName) ? form.interviewerName : '<Custom>'}
+                  onChange={(e) => {
+                    if (e.target.value !== '<Custom>') patch('interviewerName', e.target.value);
+                  }}
+                  className="w-full appearance-none bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 pr-7 text-slate-200 text-sm focus:outline-none focus:border-amber-500"
+                >
+                  {NAME_PRESETS.map((o) => (
+                    <option key={o} value={o}>{o}</option>
+                  ))}
+                  {!NAME_PRESETS.includes(form.interviewerName) && (
+                    <option value="<Custom>">{form.interviewerName}</option>
+                  )}
+                </select>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              </div>
+            </div>
           </div>
+
+          {/* Custom name input */}
+          <input
+            type="text"
+            value={NAME_PRESETS.includes(form.interviewerName) ? '' : form.interviewerName}
+            onChange={(e) => patch('interviewerName', e.target.value || '<Random>')}
+            placeholder="Custom interviewer name (overrides dropdown)"
+            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-xl px-3 py-2 text-slate-200 text-sm focus:outline-none focus:border-amber-500 placeholder-slate-600"
+          />
         </div>
 
         {/* Actions */}
@@ -166,4 +265,72 @@ export function AuditionSettingsModal({ current, onSave, onClose, onRequestMic, 
       </div>
     </div>
   );
+}
+
+function getMicStatusMeta(status: MicConnectionStatus, error?: string | null) {
+  switch (status) {
+    case 'capturing':
+      return {
+        label: 'Connected',
+        title: 'Microphone is connected',
+        description: 'Audio capture is active for the current audition.',
+        icon: Radio,
+        iconClass: 'text-emerald-400',
+        badgeClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+      };
+    case 'granted':
+      return {
+        label: 'Allowed',
+        title: 'Microphone access is allowed',
+        description: 'CoStar can use your microphone when an audition starts.',
+        icon: Mic,
+        iconClass: 'text-emerald-400',
+        badgeClass: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+      };
+    case 'prompt':
+      return {
+        label: 'Needs approval',
+        title: 'Microphone permission has not been granted',
+        description: 'Use Grant Mic Access to approve browser microphone access.',
+        icon: Mic,
+        iconClass: 'text-amber-400',
+        badgeClass: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
+      };
+    case 'denied':
+      return {
+        label: 'Blocked',
+        title: 'Microphone access is blocked',
+        description: 'Allow microphone access in your browser site settings.',
+        icon: MicOff,
+        iconClass: 'text-red-400',
+        badgeClass: 'border-red-500/30 bg-red-500/10 text-red-300',
+      };
+    case 'unsupported':
+      return {
+        label: 'Unavailable',
+        title: 'Microphone access is unavailable',
+        description: 'Use HTTPS or localhost in a browser that supports media devices.',
+        icon: AlertTriangle,
+        iconClass: 'text-red-400',
+        badgeClass: 'border-red-500/30 bg-red-500/10 text-red-300',
+      };
+    case 'error':
+      return {
+        label: 'Error',
+        title: 'Microphone needs attention',
+        description: error || 'The last microphone request failed.',
+        icon: AlertTriangle,
+        iconClass: 'text-red-400',
+        badgeClass: 'border-red-500/30 bg-red-500/10 text-red-300',
+      };
+    default:
+      return {
+        label: 'Unknown',
+        title: 'Microphone status is unknown',
+        description: 'Grant access or run diagnostics to check this browser.',
+        icon: Mic,
+        iconClass: 'text-slate-400',
+        badgeClass: 'border-slate-600 bg-slate-800 text-slate-300',
+      };
+  }
 }

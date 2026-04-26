@@ -19,6 +19,7 @@ interface UseGeminiLiveSessionOptions {
   onInterviewComplete: () => void;
   onError: (msg: string) => void;
   onFeedback?: (args: FeedbackArgs) => void;
+  onInterrupted?: () => void;
 }
 
 export interface GeminiSessionOverrides {
@@ -41,6 +42,7 @@ export function useGeminiLiveSession({
   onInterviewComplete,
   onError,
   onFeedback,
+  onInterrupted,
 }: UseGeminiLiveSessionOptions) {
   const [aiStatus, setAIStatus] = useState<AIStatus>('idle');
   const [isConnected, setIsConnected] = useState(false);
@@ -54,6 +56,7 @@ export function useGeminiLiveSession({
     onInterviewComplete,
     onError,
     onFeedback: onFeedback ?? null as ((args: FeedbackArgs) => void) | null,
+    onInterrupted: onInterrupted ?? null as (() => void) | null,
   });
   callbacksRef.current = {
     onAudioChunk,
@@ -63,6 +66,7 @@ export function useGeminiLiveSession({
     onInterviewComplete,
     onError,
     onFeedback: onFeedback ?? null,
+    onInterrupted: onInterrupted ?? null,
   };
 
   const handleMessage = useCallback((data: Record<string, unknown>) => {
@@ -78,6 +82,15 @@ export function useGeminiLiveSession({
     if (data.setupComplete) {
       console.log('[GeminiLive] Received setupComplete');
       setAIStatus('listening');
+      // Trigger the AI to start the interview
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({
+          clientContent: {
+            turns: [{ role: 'user', parts: [{ text: 'Hello.' }] }],
+            turnComplete: true,
+          },
+        }));
+      }
       return;
     }
 
@@ -142,6 +155,9 @@ export function useGeminiLiveSession({
     // Interrupted by user speech
     if (serverContent.interrupted) {
       setAIStatus('listening');
+      if (callbacksRef.current.onInterrupted) {
+        callbacksRef.current.onInterrupted();
+      }
     }
   }, []);
 

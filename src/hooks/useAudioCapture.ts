@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { float32ToInt16, int16ToBase64 } from '@/lib/audition/audioUtils';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
 
@@ -8,11 +8,14 @@ interface UseAudioCaptureOptions {
   onChunk: (base64PCM: string) => void;
 }
 
+export type MicConnectionStatus = 'unsupported' | 'unknown' | 'prompt' | 'granted' | 'denied' | 'capturing' | 'error';
+
 export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
   const [hasPermission, setHasPermission] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [permissionState, setPermissionState] = useState<PermissionState | 'unsupported' | 'unknown'>('unknown');
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -21,6 +24,45 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
   const pausedRef = useRef(false);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
+
+  useEffect(() => {
+    let permissionStatus: PermissionStatus | null = null;
+    let handleChange: (() => void) | null = null;
+    let disposed = false;
+
+    async function readPermissionStatus() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPermissionState('unsupported');
+        return;
+      }
+
+      if (!navigator.permissions?.query) {
+        setPermissionState('unknown');
+        return;
+      }
+
+      try {
+        permissionStatus = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        if (disposed) return;
+
+        const updateState = () => setPermissionState(permissionStatus?.state ?? 'unknown');
+        handleChange = updateState;
+        updateState();
+        permissionStatus.addEventListener('change', updateState);
+      } catch {
+        setPermissionState('unknown');
+      }
+    }
+
+    readPermissionStatus();
+
+    return () => {
+      disposed = true;
+      if (permissionStatus && handleChange) {
+        permissionStatus.removeEventListener('change', handleChange);
+      }
+    };
+  }, []);
 
   const requestPermission = useCallback(async () => {
     if (!navigator.mediaDevices?.getUserMedia) {
@@ -33,6 +75,7 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       setHasPermission(true);
+      setPermissionState('granted');
       setError(null);
       try { localStorage.setItem('micPermissionGranted', 'true'); } catch (e) {}
       return { granted: true };
@@ -52,6 +95,9 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
         msg = `Microphone error (${name || 'unknown'}): ${raw}`;
       }
       setError(msg);
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setPermissionState('denied');
+      }
       return { granted: false, errorText: msg };
     }
   }, []);
@@ -147,11 +193,23 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
     });
   }, []);
 
+  const micStatus: MicConnectionStatus = (() => {
+    if (isCapturing) return 'capturing';
+    if (error) return 'error';
+    if (permissionState === 'unsupported') return 'unsupported';
+    if (permissionState === 'denied') return 'denied';
+    if (hasPermission || permissionState === 'granted') return 'granted';
+    if (permissionState === 'prompt') return 'prompt';
+    return 'unknown';
+  })();
+
   return {
     hasPermission,
     isMuted,
     isCapturing,
     error,
+    micStatus,
+    permissionState,
     requestPermission,
     preloadPermission,
     diagnoseMic,

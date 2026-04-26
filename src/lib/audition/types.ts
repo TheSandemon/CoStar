@@ -12,6 +12,7 @@ export type MediaMode = 'voice' | 'video';
 
 export interface AuditionConfig {
   difficulty: Difficulty;
+  numQuestions: number;
   mediaMode: MediaMode;
   focus?: string;
   resume?: string;

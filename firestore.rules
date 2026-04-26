@@ -126,6 +126,12 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Blog posts - published posts are public; drafts and writes are admin/owner only.
+    match /blogPosts/{postId} {
+      allow read: if resource.data.status == 'published' || isPrivilegedAccount();
+      allow create, update, delete: if isPrivilegedAccount();
+    }
+
     // Conversations (Messaging)
     match /conversations/{conversationId} {
       // Only participants can read the conversation metadata

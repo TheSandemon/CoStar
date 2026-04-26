@@ -10,13 +10,19 @@ export interface AuditionSettings {
   geminiApiKey: string;
   liveApiHost: string;
   voiceName: string;
+  interviewerName: string;
+  interviewerTone: string;
+  interviewerStyle: string;
   presets: AuditionPreset[];
 }
 
 export const AUDITION_SETTINGS_DEFAULTS: AuditionSettings = {
   geminiApiKey: '',
   liveApiHost: GEMINI_CONFIG.liveApiHost,
-  voiceName: GEMINI_CONFIG.voiceName,
+  voiceName: '<Random>',
+  interviewerName: '<Random>',
+  interviewerTone: '<Random>',
+  interviewerStyle: '<Random>',
   presets: [],
 };
 

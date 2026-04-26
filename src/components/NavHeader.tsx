@@ -48,6 +48,7 @@ export default function NavHeader() {
 
         <nav className="hidden md:flex items-center gap-6">
           <Link href="/jobs" className="text-slate-300 hover:text-white transition-colors">Jobs</Link>
+          <Link href="/blog" className="text-slate-300 hover:text-white transition-colors">Blog</Link>
           <Link href="/audition" className="flex items-center gap-1.5 text-violet-300 hover:text-violet-200 transition-colors font-medium">
             <Mic className="w-3.5 h-3.5" />
             Audition
