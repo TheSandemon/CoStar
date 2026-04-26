@@ -11,7 +11,7 @@ CoStar is a Next.js (App Router) web application that helps users practice job i
 - **Audition** – Real-time AI voice interview via WebSocket (Gemini Live API)
 - **Job Board** – Scraped job listings stored in Firestore
 - **Auth** – Firebase Authentication (Google sign-in)
-- **Settings** – Per-user Gemini API key, voice, model stored in Firestore (`auditionSettings/{uid}`)
+- **Settings** – Per-user Gemini API key, voice, and interviewer persona stored in Firestore (`auditionSettings/{uid}`)
 
 ---
 
@@ -23,7 +23,7 @@ CoStar is a Next.js (App Router) web application that helps users practice job i
 
 **This is the root cause of all 1007 errors in this project.**
 
-The ephemeral token approach (`BidiGenerateContentConstrained` / `v1alpha` / `access_token`) returns:
+The ephemeral token approach (`BidiGenerateContentConstrained` / `access_token`) returns:
 ```
 1007 — token-based requests cannot use project-scoped features such as tuned models
 ```
@@ -31,15 +31,13 @@ The ephemeral token approach (`BidiGenerateContentConstrained` / `v1alpha` / `ac
 `gemini-3.1-flash-live-preview` is treated as a project-scoped model and **cannot be accessed via ephemeral tokens**.
 
 **The working approach** (confirmed from the Audition reference project at `C:\Users\Sand\Desktop\Coding\Audition`):
-- Use **`v1alpha`** API version
+- Use **`v1beta`** API version
 - Use **`BidiGenerateContent`** (no `Constrained` suffix)
 - Authenticate with **`?key=`** — pass the API key directly in the URL
 
 ```
-wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key={API_KEY}
+wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key={API_KEY}
 ```
-
-**Why not v1beta?** `gemini-3.1-flash-live-preview` does not exist in `v1beta` — it returns `1008: not found for API version v1beta`.
 
 **Why not BidiGenerateContentConstrained?** That endpoint requires ephemeral tokens (`access_token`), which fail with `1007: token-based requests cannot use project-scoped features` for this model.
 
@@ -65,6 +63,8 @@ The first message sent after open must use `setup` as the top-level key:
   }
 }
 ```
+
+The setup also includes a `tools` array with the `generate_feedback` function declaration — see `useGeminiLiveSession.ts` for the full schema.
 
 **Wrong** (causes 1007):
 - `{ "config": { ... } }` — incorrect top-level key
@@ -116,7 +116,7 @@ Do NOT pass a `model` field inside it — the server rejects it.
 
 ### 7. `/api/audition/token` Route — What It Does
 
-The route is Firebase-auth-gated and returns `{ key, host, liveModel }`. The client uses these to build the WebSocket URL. No ephemeral token minting occurs.
+The route is Firebase-auth-gated and returns `{ key, host }`. The client uses these to build the WebSocket URL. No ephemeral token minting occurs. The `liveModel` defaults to `GEMINI_CONFIG.liveModel` on the client when not overridden by user settings.
 
 ### 8. WebSocket Close Codes Reference
 
@@ -129,6 +129,16 @@ The route is Firebase-auth-gated and returns `{ key, host, liveModel }`. The cli
 ### 9. `connect()` Must Be a Promise That Awaits `onopen`
 
 The `connect()` function in `useGeminiLiveSession.ts` returns a `Promise<void>` that **only resolves after `ws.onopen` fires**. If `onerror` or `onclose` fires before `onopen`, the promise must **reject** so the caller can reset the UI phase.
+
+### 10. Audio Must Be Gated On `setupComplete`
+
+**Do not send audio chunks before `setupComplete` is received from the server.**
+
+`sendAudioChunk` is gated behind a `setupReadyRef` flag that starts `false` and is set to `true` only when `setupComplete` arrives. This is critical: sending audio before `setupComplete` competes with the initial text turn ("Hello.") that triggers the AI's opening introduction, causing the AI to never speak first.
+
+After `setupComplete`:
+1. `setupReadyRef.current` is set to `true` (unblocking audio)
+2. A `clientContent` turn with `"Hello."` is sent to prompt the AI's opening
 
 ---
 
@@ -153,8 +163,8 @@ setup → requesting-permission → connecting → interviewing → ending → r
 - `setup`: SetupScreen shown. Mic permission pre-loaded silently.
 - `requesting-permission`: Await `audioCapture.requestPermission()`.
 - `connecting`: Token fetched from `/api/audition/token`, WebSocket connecting.
-- `interviewing`: WebSocket open & setup sent, audio capture streaming.
-- `ending`: Interview stopped, feedback API called.
+- `interviewing`: WebSocket open & setup sent. Audio gated until `setupComplete`. AI speaks first.
+- `ending`: Interview stopped, feedback requested via `generate_feedback` tool call.
 - `results`: ResultsScreen shown.
 
 On any error after `connecting`, the phase must reset to `setup` and the error must be surfaced.
@@ -162,10 +172,12 @@ On any error after `connecting`, the phase must reset to `setup` and the error m
 ### Static Account Types and Admin/Owner Access
 
 Account type is an immutable identity path stored on `users/{uid}`:
-- Public paths: `user`, `business`, `agency`
+- Public paths: `talent`, `business`, `agency`
 - Hidden privileged paths: `admin`, `owner`
 
-Public sign-up must only expose `user`, `business`, and `agency`. Do not add `admin` or `owner` as selectable UI options.
+> Note: the legacy string `"user"` is normalized to `"talent"` in `firebaseAdmin.ts` for backward compatibility, but `talent` is the canonical type. Do not use `"user"` in new code.
+
+Public sign-up must only expose `talent`, `business`, and `agency`. Do not add `admin` or `owner` as selectable UI options.
 
 `kyletouchet@gmail.com` is the hardcoded owner bootstrap email. `POST /api/account/bootstrap` verifies the Firebase ID token server-side and forces that email to:
 - `accountType: "owner"`
@@ -184,15 +196,30 @@ Admin routes:
 
 Stored at `auditionSettings/{uid}`:
 - `geminiApiKey` — user's personal Gemini API key (overrides env var)
-- `voiceName` — AI voice (Aoede, Charon, Fenrir, Kore, Puck)
-- `liveModel` — override for Live model name
-- `liveApiHost` — override for WebSocket host
-- `presets` — saved interview config presets (array)
+- `voiceName` — AI voice (Aoede, Charon, Kore, Puck, or `<Random>`)
+- `liveApiHost` — override for WebSocket host (defaults to `generativelanguage.googleapis.com`)
+- `interviewerName` — AI interviewer name (or `<Random>`)
+- `interviewerTone` — interviewer tone (Professional, Friendly, Formal, Casual, Direct, Empathetic, Encouraging, Challenging, or `<Random>`)
+- `interviewerStyle` — interview methodology (Structured, Conversational, Behavioral, Technical, Socratic, STAR-focused, or `<Random>`)
+- `presets` — saved interview config presets (array of `AuditionPreset`)
+
+### Session History (Firestore)
+
+Every interview session is persisted at `auditionSessions/{uid}/sessions/{sessionId}` as an `AuditionSession` document. The `AuditionSession` type includes:
+- `status: 'in-progress' | 'completed' | 'cancelled'` — set at start, updated on end/cancel
+- `startedAt` — ISO timestamp when the interview phase began
+- `endedAt?` — ISO timestamp when the session ended or was cancelled
+- `transcript` — array of `TranscriptEntry` (role, text, timestamp, isFinal)
+- `score`, `feedback`, `strengths`, `improvements` — from the AI's `generate_feedback` tool call
+- `ultraFeedback?` — optional extended analysis generated on demand
+
+Sessions are written server-side via `/api/audition/sessions` (Firebase Admin SDK) as the authoritative path. A secondary client-side write via the Firestore SDK runs after for redundancy.
 
 ### API Routes
 
-- `POST /api/audition/token` — Firebase-auth-gated. Reads the Gemini API key from Firestore (per-user) or the `GEMINI_API_KEY` env var (fallback). Returns `{ key, host, liveModel }` — no ephemeral token minting.
-- `POST /api/audition/feedback` — Generates post-interview score/feedback via standard Gemini REST API.
+- `POST /api/audition/token` — Firebase-auth-gated. Returns `{ key, host }` — the Gemini API key and WebSocket host. No ephemeral token minting.
+- `POST /api/audition/sessions` — Firebase-auth-gated. Accepts a full or partial `AuditionSession` and writes it to Firestore server-side using `merge: true`. Used for start (in-progress), end (completed), and cancel (cancelled) events.
+- `POST /api/audition/ultra-feedback` — Generates extended post-interview analysis via Gemini Pro. Accepts the session transcript and initial feedback; returns a detailed markdown report. The client saves this back to the session document.
 
 ---
 

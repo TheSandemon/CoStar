@@ -11,6 +11,7 @@ import type {
   AuditionConfig,
   AuditionResults,
   AuditionPreset,
+  AuditionSession,
 } from '@/lib/audition/types';
 import type { JobData } from '@/lib/jobs';
 
@@ -92,6 +93,20 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const pendingEndRef = useRef(false);
   const feedbackResolveRef = useRef<((args: FeedbackArgs) => void) | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const saveSessionToServer = useCallback(async (data: Partial<AuditionSession> & { id: string }) => {
+    if (!user) return;
+    try {
+      const idToken = await user.getIdToken();
+      await fetch('/api/audition/sessions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify(data),
+      });
+    } catch (err) {
+      console.error('[Audition] Server session save failed:', err);
+    }
+  }, [user]);
 
   useEffect(() => {
     if (mode !== 'job' || !jobId) return;
@@ -219,12 +234,35 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       sessionIdRef.current = Date.now().toString();
       sessionStartRef.current = Date.now();
       interviewStartTimeRef.current = Date.now();
+
+      const resolvedTitle = mode === 'freeform' ? 'Custom Role' : (job?.title ?? 'Unknown Role');
+      const resolvedCompany = mode === 'freeform' ? '' : (job?.companyName ?? 'Unknown Company');
+      const startedAt = new Date().toISOString();
+      saveSessionToServer({
+        id: sessionIdRef.current,
+        userId: user.uid,
+        date: startedAt,
+        startedAt,
+        status: 'in-progress',
+        mode: mode === 'freeform' ? 'freeform' : 'job',
+        jobTitle: resolvedTitle,
+        companyName: resolvedCompany,
+        jobId,
+        config: { ...config, voiceName: settings.voiceName },
+        transcript: [],
+        score: 0,
+        feedback: '',
+        strengths: [],
+        improvements: [],
+        durationSeconds: 0,
+      });
+
       setPhase('interviewing');
     } catch (err) {
       setSessionError(err instanceof Error ? err.message : 'Failed to start session');
       setPhase('setup');
     }
-  }, [user, job, jobText, mode, config, audioCapture, connect, settings]);
+  }, [user, job, jobText, mode, config, audioCapture, connect, settings, jobId, saveSessionToServer]);
 
   const handleEndInterview = useCallback(async () => {
     setPhase('ending');
@@ -257,31 +295,40 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     };
     setResults(sessionResults);
 
+    const completedSession = {
+      id: sessionIdRef.current,
+      userId: user?.uid ?? '',
+      date: new Date().toISOString(),
+      status: 'completed' as const,
+      startedAt: new Date(sessionStartRef.current).toISOString(),
+      endedAt: new Date().toISOString(),
+      mode: mode === 'freeform' ? 'freeform' as const : 'job' as const,
+      jobTitle: resolvedTitle,
+      companyName: resolvedCompany,
+      jobId,
+      config: { ...config, voiceName: settings.voiceName },
+      transcript: finalEntries,
+      score: feedback.score,
+      feedback: feedback.feedback,
+      strengths: feedback.strengths,
+      improvements: feedback.improvements,
+      durationSeconds,
+    };
+
+    // Server-side save first (authoritative)
+    await saveSessionToServer(completedSession);
+
+    // Client-side save as secondary path
     if (user) {
       try {
-        await saveSession({
-          id: sessionIdRef.current,
-          userId: user.uid,
-          date: new Date().toISOString(),
-          mode: mode === 'freeform' ? 'freeform' : 'job',
-          jobTitle: resolvedTitle,
-          companyName: resolvedCompany,
-          jobId: jobId,
-          config: { ...config, voiceName: settings.voiceName },
-          transcript: finalEntries,
-          score: feedback.score,
-          feedback: feedback.feedback,
-          strengths: feedback.strengths,
-          improvements: feedback.improvements,
-          durationSeconds,
-        });
-      } catch {
-        // save failure is non-fatal
+        await saveSession(completedSession);
+      } catch (err) {
+        console.error('[Audition] Client session save failed:', err);
       }
     }
 
     setPhase('results');
-  }, [disconnect, audioCapture, stopPlayback, sendClientText, entries, job, mode, config, settings, user, jobId, saveSession]);
+  }, [disconnect, audioCapture, stopPlayback, sendClientText, entries, job, mode, config, settings, user, jobId, saveSession, saveSessionToServer]);
 
   useEffect(() => {
     if (pendingEndRef.current && !isPlaying) {
@@ -291,13 +338,24 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   }, [isPlaying, handleEndInterview]);
 
   const handleCancelInterview = useCallback(() => {
+    if (sessionIdRef.current && user) {
+      saveSessionToServer({
+        id: sessionIdRef.current,
+        userId: user.uid,
+        status: 'cancelled',
+        endedAt: new Date().toISOString(),
+        transcript: entries.map((e) => ({ ...e, isFinal: true })),
+        durationSeconds: Math.round((Date.now() - interviewStartTimeRef.current) / 1000),
+      });
+    }
     disconnect();
     audioCapture.stopCapture();
     stopPlayback();
     resetTranscript();
+    sessionIdRef.current = '';
     setSessionError(null);
     setPhase('setup');
-  }, [disconnect, audioCapture, stopPlayback, resetTranscript]);
+  }, [disconnect, audioCapture, stopPlayback, resetTranscript, user, entries, saveSessionToServer]);
 
   const handleTryAgain = useCallback(() => {
     closePlayback();

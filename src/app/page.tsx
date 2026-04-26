@@ -1,29 +1,11 @@
 import Link from "next/link";
 import { User, Building2, Users2, ArrowRight, Github, Linkedin, CheckCircle2 } from "lucide-react";
+import HomeHeader from "@/components/HomeHeader";
 
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-      {/* Header */}
-      <header className="border-b border-white/10 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-xl flex items-center justify-center">
-              <span className="text-slate-900 font-bold text-xl">C</span>
-            </div>
-            <span className="text-white text-xl font-bold">CoStar</span>
-          </div>
-          <nav className="hidden md:flex items-center gap-8">
-            <Link href="#features" className="text-slate-300 hover:text-white transition-colors">Features</Link>
-            <Link href="/blog" className="text-slate-300 hover:text-white transition-colors">Blog</Link>
-            <Link href="#pricing" className="text-slate-300 hover:text-white transition-colors">Pricing</Link>
-            <Link href="/sign-in" className="text-slate-300 hover:text-white transition-colors">Sign In</Link>
-            <Link href="/sign-up" className="px-4 py-2 bg-white text-slate-900 rounded-lg font-medium hover:bg-slate-100 transition-colors">
-              Get Started
-            </Link>
-          </nav>
-        </div>
-      </header>
+      <HomeHeader />
 
       {/* Hero Section */}
       <section className="relative py-24 md:py-32 overflow-hidden">

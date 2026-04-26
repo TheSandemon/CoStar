@@ -16,7 +16,9 @@
       "Bash(npm install *)",
       "Bash(xargs grep *)",
       "Bash(xargs ls *)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|js|jsx\\)$\")",
+      "Bash(xargs basename *)"
     ]
   }
 }

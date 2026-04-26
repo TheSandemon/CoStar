@@ -48,6 +48,7 @@ export function useGeminiLiveSession({
   const [isConnected, setIsConnected] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
+  const setupReadyRef = useRef(false);
   const callbacksRef = useRef({
     onAudioChunk,
     onAITranscript,
@@ -80,9 +81,9 @@ export function useGeminiLiveSession({
 
     // Setup confirmation
     if (data.setupComplete) {
-      console.log('[GeminiLive] Received setupComplete');
+      console.log('[GeminiLive] Received setupComplete — unblocking audio, triggering AI opening');
+      setupReadyRef.current = true;
       setAIStatus('listening');
-      // Trigger the AI to start the interview
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           clientContent: {
@@ -183,8 +184,9 @@ export function useGeminiLiveSession({
 
         ws.onopen = () => {
           isOpened = true;
+          setupReadyRef.current = false;
           setIsConnected(true);
-          setAIStatus('listening'); // Start in listening mode — reference app doesn't wait for setupComplete
+          setAIStatus('listening'); // Start in listening mode — audio chunks blocked until setupComplete
 
           // Send setup message — top-level key must be "setup" per official Google sample
           const setup = {
@@ -276,6 +278,9 @@ export function useGeminiLiveSession({
   );
 
   const sendAudioChunk = useCallback((base64PCM: string) => {
+    if (!setupReadyRef.current) {
+      return; // Discard chunks until setupComplete is received — prevents competing with "Hello." trigger
+    }
     if (!wsRef.current) {
       console.log('[GeminiLive] sendAudioChunk early return: wsRef is null');
       return;
@@ -307,6 +312,7 @@ export function useGeminiLiveSession({
   }, []);
 
   const disconnect = useCallback(() => {
+    setupReadyRef.current = false;
     wsRef.current?.close();
     wsRef.current = null;
     setIsConnected(false);

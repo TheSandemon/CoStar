@@ -114,7 +114,7 @@ Methodology: ${styleGuidance(persona.style)}
 ${conductRules(config.numQuestions)}
 
 OPENING:
-Begin immediately by introducing yourself warmly and referencing the role from the job posting: "Hi, I'm ${persona.name}, and I'll be your interviewer today. Thanks for making time — let's jump right in. [first question here]"
+Begin immediately by introducing yourself and referencing the role from the job posting: "Hi, I'm ${persona.name}, and I'll be your interviewer today. Let's jump right in. [first question here]"
 
 Do not say anything else before starting.`;
 }

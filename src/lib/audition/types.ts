@@ -45,6 +45,9 @@ export interface AuditionSession {
   id: string;
   userId: string;
   date: string;
+  status: 'in-progress' | 'completed' | 'cancelled';
+  startedAt: string;
+  endedAt?: string;
   mode: 'freeform' | 'job';
   jobTitle: string;
   companyName: string;
