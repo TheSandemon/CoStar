@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { float32ToInt16, int16ToBase64 } from '@/lib/audition/audioUtils';
+import { float32ToInt16, int16ToBase64, resampleFloat32PCM } from '@/lib/audition/audioUtils';
 import { GEMINI_CONFIG } from '@/lib/audition/config';
 
 interface UseAudioCaptureOptions {
@@ -22,6 +22,7 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
   const processorRef = useRef<ScriptProcessorNode | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const pausedRef = useRef(false);
+  const loggedFirstChunkRef = useRef(false);
   const onChunkRef = useRef(onChunk);
   onChunkRef.current = onChunk;
 
@@ -141,11 +142,25 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
     return lines;
   }, []);
 
-  const startCapture = useCallback(() => {
+  const startCapture = useCallback(async () => {
     if (!streamRef.current) return;
 
-    const ctx = new AudioContext({ sampleRate: GEMINI_CONFIG.inputSampleRate });
+    const AudioContextCtor =
+      window.AudioContext ||
+      (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+
+    if (!AudioContextCtor) {
+      setError('This browser does not support microphone audio capture.');
+      return;
+    }
+
+    const ctx = new AudioContextCtor({ sampleRate: GEMINI_CONFIG.inputSampleRate });
     audioContextRef.current = ctx;
+    loggedFirstChunkRef.current = false;
+
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
 
     const source = ctx.createMediaStreamSource(streamRef.current);
     sourceRef.current = source;
@@ -157,9 +172,21 @@ export function useAudioCapture({ onChunk }: UseAudioCaptureOptions) {
     processor.onaudioprocess = (e) => {
       if (pausedRef.current) return;
       const input = e.inputBuffer.getChannelData(0);
-      const pcm = float32ToInt16(input);
+      const sourceSampleRate = e.inputBuffer.sampleRate || ctx.sampleRate;
+      const resampled = resampleFloat32PCM(input, sourceSampleRate, GEMINI_CONFIG.inputSampleRate);
+      const pcm = float32ToInt16(resampled);
       const base64 = int16ToBase64(pcm);
-      console.log('[AudioCapture] onchunks, paused:', pausedRef.current, 'input length:', input.length, 'pausedRef address:', pausedRef.current);
+      if (!loggedFirstChunkRef.current) {
+        loggedFirstChunkRef.current = true;
+        console.log('[AudioCapture] first chunk', {
+          sourceSampleRate,
+          contextSampleRate: ctx.sampleRate,
+          targetSampleRate: GEMINI_CONFIG.inputSampleRate,
+          sourceFrames: input.length,
+          resampledFrames: resampled.length,
+          base64Length: base64.length,
+        });
+      }
       onChunkRef.current(base64);
     };
 

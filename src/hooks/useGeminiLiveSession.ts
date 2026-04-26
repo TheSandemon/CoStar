@@ -49,6 +49,8 @@ export function useGeminiLiveSession({
 
   const wsRef = useRef<WebSocket | null>(null);
   const setupReadyRef = useRef(false);
+  const firstTurnStartedRef = useRef(false);
+  const firstAudioSentRef = useRef(false);
   const callbacksRef = useRef({
     onAudioChunk,
     onAITranscript,
@@ -83,6 +85,7 @@ export function useGeminiLiveSession({
     if (data.setupComplete) {
       console.log('[GeminiLive] Received setupComplete — unblocking audio, triggering AI opening');
       setupReadyRef.current = true;
+      firstAudioSentRef.current = false;
       setAIStatus('listening');
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
@@ -171,6 +174,7 @@ export function useGeminiLiveSession({
           wsRef.current.close();
         }
 
+        firstAudioSentRef.current = false;
         const host = overrides?.liveApiHost ?? credentials.host;
         const model = overrides?.liveModel ?? credentials.liveModel ?? GEMINI_CONFIG.liveModel;
         const voice = overrides?.voiceName ?? GEMINI_CONFIG.voiceName;
@@ -185,6 +189,7 @@ export function useGeminiLiveSession({
         ws.onopen = () => {
           isOpened = true;
           setupReadyRef.current = false;
+          firstAudioSentRef.current = false;
           setIsConnected(true);
           setAIStatus('listening'); // Start in listening mode — audio chunks blocked until setupComplete
 
@@ -261,7 +266,14 @@ export function useGeminiLiveSession({
         };
 
         ws.onclose = (event) => {
-          console.log('[GeminiLive] ws.onclose code:', event.code, 'reason:', event.reason);
+          const closeStage = !isOpened
+            ? 'before-open'
+            : !setupReadyRef.current
+            ? 'before-setup-complete'
+            : firstAudioSentRef.current
+            ? 'after-first-audio'
+            : 'before-first-audio';
+          console.log('[GeminiLive] ws.onclose code:', event.code, 'reason:', event.reason, 'stage:', closeStage, 'url:', urlSafe, 'model:', model);
           setIsConnected(false);
           setAIStatus('idle');
           if (wsRef.current === ws) wsRef.current = null;
@@ -269,7 +281,13 @@ export function useGeminiLiveSession({
           if (!isOpened) {
             reject(new Error(`Connection closed before opening. Code: ${event.code}. Reason: ${event.reason} | URL: ${urlSafe} | model: ${model}`));
           } else if (event.code !== 1000 && event.code !== 1005) {
-            callbacksRef.current.onError(`Connection lost. Code: ${event.code}. Reason: ${event.reason}`);
+            if (event.code === 1008 && closeStage === 'after-first-audio') {
+              callbacksRef.current.onError(
+                `The Live API rejected the microphone audio payload. Code: ${event.code}. Reason: ${event.reason || 'No reason provided'}. Try another browser or device while capture format details are logged.`
+              );
+            } else {
+              callbacksRef.current.onError(`Connection lost. Code: ${event.code}. Reason: ${event.reason}. Stage: ${closeStage}`);
+            }
           }
         };
       });
@@ -297,7 +315,9 @@ export function useGeminiLiveSession({
         },
       },
     };
-    console.log('[GeminiLive] sendAudioChunk, ws state:', wsRef.current.readyState, 'chunk size:', base64PCM.length);
+    const isFirstAudio = !firstAudioSentRef.current;
+    firstAudioSentRef.current = true;
+    console.log('[GeminiLive] sendAudioChunk, ws state:', wsRef.current.readyState, 'chunk size:', base64PCM.length, 'firstAudio:', isFirstAudio);
     wsRef.current.send(JSON.stringify(msg));
   }, []);
 
@@ -313,6 +333,8 @@ export function useGeminiLiveSession({
 
   const disconnect = useCallback(() => {
     setupReadyRef.current = false;
+    firstTurnStartedRef.current = false;
+    firstAudioSentRef.current = false;
     wsRef.current?.close();
     wsRef.current = null;
     setIsConnected(false);

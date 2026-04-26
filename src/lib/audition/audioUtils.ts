@@ -15,6 +15,25 @@ export function int16ToFloat32(buffer: Int16Array): Float32Array {
   return out;
 }
 
+export function resampleFloat32PCM(input: Float32Array, sourceRate: number, targetRate: number): Float32Array {
+  if (sourceRate === targetRate) return input;
+  if (input.length === 0 || sourceRate <= 0 || targetRate <= 0) return new Float32Array();
+
+  const outputLength = Math.max(1, Math.round((input.length * targetRate) / sourceRate));
+  const output = new Float32Array(outputLength);
+  const ratio = sourceRate / targetRate;
+
+  for (let i = 0; i < outputLength; i++) {
+    const sourceIndex = i * ratio;
+    const leftIndex = Math.floor(sourceIndex);
+    const rightIndex = Math.min(leftIndex + 1, input.length - 1);
+    const fraction = sourceIndex - leftIndex;
+    output[i] = input[leftIndex] + (input[rightIndex] - input[leftIndex]) * fraction;
+  }
+
+  return output;
+}
+
 export function int16ToBase64(buffer: Int16Array): string {
   const bytes = new Uint8Array(buffer.buffer);
   let binary = '';
