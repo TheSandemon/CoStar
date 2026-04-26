@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { getScrapedJobById } from '@/lib/jobs';
 import { deserializeCareerjetJob } from '@/lib/careerjet';
-import { buildSystemPrompt, buildSystemPromptFromText } from '@/lib/audition/systemPrompt';
+import { buildSystemPrompt, buildSystemPromptFromText, type PersonaConfig } from '@/lib/audition/systemPrompt';
 import type {
   AuditionPhase,
   AuditionConfig,
@@ -33,10 +33,40 @@ interface AuditionPageProps {
 
 const DEFAULT_CONFIG: AuditionConfig = {
   difficulty: 'medium',
+  numQuestions: 5,
   mediaMode: 'voice',
   focus: '',
   resume: '',
 };
+
+// Voice label → Gemini TTS voice name
+const VOICE_LABEL_MAP: Record<string, string> = {
+  'Young Male': 'Puck',
+  'Young Female': 'Aoede',
+  'Older Male': 'Charon',
+  'Older Female': 'Kore',
+};
+const ALL_GEMINI_VOICES = ['Puck', 'Aoede', 'Charon', 'Kore'];
+const ALL_TONES = ['Professional', 'Friendly', 'Formal', 'Casual', 'Direct', 'Empathetic', 'Encouraging', 'Challenging'];
+const ALL_STYLES = ['Structured', 'Conversational', 'Behavioral', 'Technical', 'Socratic', 'STAR-focused'];
+const ALL_NAMES = ['Alex', 'Jordan', 'Sam', 'Taylor', 'Morgan', 'Chris', 'Riley', 'Casey'];
+
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function resolveVoice(voiceSetting: string): string {
+  if (voiceSetting === '<Random>') return pick(ALL_GEMINI_VOICES);
+  return VOICE_LABEL_MAP[voiceSetting] ?? voiceSetting;
+}
+
+function resolvePersona(settings: { interviewerName: string; interviewerTone: string; interviewerStyle: string }): PersonaConfig {
+  return {
+    name: settings.interviewerName === '<Random>' ? pick(ALL_NAMES) : settings.interviewerName,
+    tone: settings.interviewerTone === '<Random>' ? pick(ALL_TONES) : settings.interviewerTone,
+    style: settings.interviewerStyle === '<Random>' ? pick(ALL_STYLES) : settings.interviewerStyle,
+  };
+}
 
 type FeedbackArgs = { score: number; feedback: string; strengths: string[]; improvements: string[] };
 
@@ -103,6 +133,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       finalizeLast('ai');
       audioCapture.setPaused(false);
     },
+    onInterrupted: stopPlayback,
     onInterviewComplete: () => {
       pendingEndRef.current = true;
     },
@@ -171,15 +202,17 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
 
       const credentials: GeminiSessionCredentials = { key, host };
 
-      const voiceName = settings.voiceName || 'Alex';
+      const resolvedVoice = resolveVoice(settings.voiceName);
+      const persona = resolvePersona(settings);
+
       const systemPrompt =
         mode === 'freeform'
-          ? buildSystemPromptFromText(jobText, config, voiceName)
-          : buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config, voiceName);
+          ? buildSystemPromptFromText(jobText, config, persona)
+          : buildSystemPrompt(job ?? { title: 'this role', companyName: 'the company' }, config, persona);
 
       await connect(credentials, systemPrompt, config, {
         liveApiHost: settings.liveApiHost || undefined,
-        voiceName: settings.voiceName || undefined,
+        voiceName: resolvedVoice,
       });
 
       audioCapture.startCapture();
@@ -234,7 +267,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
           jobTitle: resolvedTitle,
           companyName: resolvedCompany,
           jobId: jobId,
-          config: { ...config, voiceName: settings.voiceName || 'Alex' },
+          config: { ...config, voiceName: settings.voiceName },
           transcript: finalEntries,
           score: feedback.score,
           feedback: feedback.feedback,
@@ -293,12 +326,12 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   }, [settings, saveSettings]);
 
   const handleLoadPreset = useCallback((preset: AuditionPreset) => {
-    setConfig((c) => ({ ...c, ...preset.config }));
+    setConfig((c) => ({ ...c, ...preset.config, numQuestions: preset.config.numQuestions ?? c.numQuestions }));
   }, []);
 
   const displayTitle = mode === 'freeform' ? 'Custom Interview' : (job?.title ?? 'Interview');
   const displayCompany = mode === 'freeform' ? '' : (job?.companyName ?? '');
-  const voiceName = settings.voiceName || 'Alex';
+  const displayVoiceName = settings.interviewerName === '<Random>' ? 'AI Interviewer' : settings.interviewerName;
 
   if (phase === 'setup' || phase === 'requesting-permission') {
     return (
@@ -328,6 +361,8 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
             onClose={() => setShowSettings(false)}
             onRequestMic={() => audioCapture.requestPermission()}
             onDiagnoseMic={() => audioCapture.diagnoseMic()}
+            micStatus={audioCapture.micStatus}
+            micError={audioCapture.error}
           />
         )}
       </>
@@ -339,7 +374,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       <InterviewScreen
         jobTitle={displayTitle}
         companyName={displayCompany}
-        voiceName={voiceName}
+        voiceName={displayVoiceName}
         aiStatus={aiStatus}
         isConnecting={phase === 'connecting'}
         isMuted={audioCapture.isMuted}
