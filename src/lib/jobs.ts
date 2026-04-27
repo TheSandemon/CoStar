@@ -251,6 +251,7 @@ export interface JobFilters {
   companySize?: string[];
   datePosted?: '24h' | 'week' | 'month' | 'any';
   tags?: string[];
+  source?: string[];
   employerId?: string;
   companyId?: string;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { verifyBearerToken, getAdminDb, jsonError } from '@/lib/firebaseAdmin';
+import { stripUndefinedFields } from '@/lib/audition/sessionSerialization';
 import type { AuditionSession } from '@/lib/audition/types';
 
 export async function POST(req: Request) {
@@ -17,9 +18,10 @@ export async function POST(req: Request) {
     }
 
     const db = getAdminDb();
+    const sessionPatch = stripUndefinedFields({ ...body, userId: decoded.uid });
     await db
       .doc(`auditionSessions/${decoded.uid}/sessions/${body.id}`)
-      .set({ ...body, userId: decoded.uid }, { merge: true });
+      .set(sessionPatch, { merge: true });
 
     return NextResponse.json({ ok: true });
   } catch (err) {

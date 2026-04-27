@@ -314,6 +314,38 @@ export default function JobFiltersComponent({
           </FilterSection>
         )}
 
+        {/* Tags */}
+        {tags.length > 0 && (
+          <FilterSection title="Tags" sectionKey="tags">
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+              {tags.map(tag => (
+                <Checkbox
+                  key={tag}
+                  checked={(filters.tags || []).includes(tag)}
+                  onChange={() => toggleArrayFilter('tags', tag)}
+                  label={tag}
+                />
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
+        {/* Sources */}
+        {sources.length > 0 && (
+          <FilterSection title="Source" sectionKey="source">
+            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+              {sources.map(source => (
+                <Checkbox
+                  key={source}
+                  checked={(filters.source || []).includes(source)}
+                  onChange={() => toggleArrayFilter('source', source)}
+                  label={source}
+                />
+              ))}
+            </div>
+          </FilterSection>
+        )}
+
         {/* Clear Filters */}
         {hasActiveFilters && (
           <button
