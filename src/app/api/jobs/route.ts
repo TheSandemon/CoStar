@@ -325,8 +325,9 @@ function buildRequestState(req: NextRequest) {
 
   const userIp = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || '127.0.0.1';
   const userAgent = req.headers.get('user-agent') || 'CoStar/1.0';
+  const referer = req.headers.get('referer') || 'https://costar.app/jobs';
 
-  return { search, location, source, sort, page, pageSize, filters, userIp, userAgent };
+  return { search, location, source, sort, page, pageSize, filters, userIp, userAgent, referer };
 }
 
 async function fetchCareerjet(state: ReturnType<typeof buildRequestState>, apiKey: string): Promise<ProviderResult> {
@@ -356,15 +357,23 @@ async function fetchCareerjet(state: ReturnType<typeof buildRequestState>, apiKe
     headers: {
       Authorization: getAuthHeader(apiKey),
       Accept: 'application/json',
+      Referer: state.referer,
+      'User-Agent': state.userAgent,
+      'X-Forwarded-For': state.userIp,
     },
     next: { revalidate: CACHE_SECONDS },
   });
 
   if (!response.ok) {
-    throw new Error(`Careerjet request failed (${response.status})`);
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(`Careerjet request failed (${response.status}): ${errorBody.message || errorBody.error || 'Unknown error'}`);
   }
 
-  const data = (await response.json()) as CareerjetApiResponse;
+  const data = (await response.json()) as CareerjetApiResponse & { type?: string; message?: string };
+  if (data.type === 'ERROR') {
+    throw new Error(`Careerjet API error: ${data.message || 'Unknown provider error'}`);
+  }
+
   if (data.type === 'LOCATIONS') {
     return {
       provider: 'careerjet',
@@ -396,6 +405,9 @@ async function fetchJooble(state: ReturnType<typeof buildRequestState>, apiKey: 
     headers: {
       'Content-Type': 'application/json',
       Accept: 'application/json',
+      Referer: state.referer,
+      'User-Agent': state.userAgent,
+      'X-Forwarded-For': state.userIp,
     },
     body: JSON.stringify({
       keywords: state.search || 'jobs',
@@ -406,7 +418,8 @@ async function fetchJooble(state: ReturnType<typeof buildRequestState>, apiKey: 
   });
 
   if (!response.ok) {
-    throw new Error(`Jooble request failed (${response.status})`);
+    const errorBody = await response.json().catch(() => ({}));
+    throw new Error(`Jooble request failed (${response.status}): ${errorBody.message || errorBody.error || 'Unknown error'}`);
   }
 
   const data = (await response.json()) as JoobleApiResponse;
