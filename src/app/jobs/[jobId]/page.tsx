@@ -426,17 +426,6 @@ export default function JobDetailPage() {
                     Practice Audition
                     <span className="ml-auto text-xs font-normal opacity-70">AI Interview</span>
                   </Link>
-
-                  <button
-                    onClick={handleMessageRecruiter}
-                    disabled={isMessaging}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-3 mt-3
-                      bg-slate-800 hover:bg-slate-700
-                      text-white rounded-xl font-bold transition-all border border-white/10 disabled:opacity-50"
-                  >
-                    {isMessaging ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                    Message Recruiter
-                  </button>
                 </>
               )}
 

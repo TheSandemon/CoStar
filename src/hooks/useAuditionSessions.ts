@@ -12,6 +12,7 @@ import {
   query,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { stripUndefinedFields } from '@/lib/audition/sessionSerialization';
 import type { AuditionSession } from '@/lib/audition/types';
 
 export function useAuditionSessions(uid: string | null) {
@@ -20,7 +21,7 @@ export function useAuditionSessions(uid: string | null) {
       if (!uid || !db) return;
       await setDoc(
         doc(db, 'auditionSessions', uid, 'sessions', session.id),
-        session,
+        stripUndefinedFields(session),
       );
     },
     [uid],

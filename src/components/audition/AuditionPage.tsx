@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getScrapedJobById } from '@/lib/jobs';
 import { deserializeCareerjetJob } from '@/lib/careerjet';
 import { buildSystemPrompt, buildSystemPromptFromText, type PersonaConfig } from '@/lib/audition/systemPrompt';
+import { stripUndefinedFields } from '@/lib/audition/sessionSerialization';
 import type {
   AuditionPhase,
   AuditionConfig,
@@ -70,6 +71,7 @@ function resolvePersona(settings: { interviewerName: string; interviewerTone: st
 }
 
 type FeedbackArgs = { score: number; feedback: string; strengths: string[]; improvements: string[] };
+type SessionPatch = Partial<AuditionSession> & { id: string };
 
 export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const router = useRouter();
@@ -94,17 +96,23 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   const feedbackResolveRef = useRef<((args: FeedbackArgs) => void) | null>(null);
   const feedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const saveSessionToServer = useCallback(async (data: Partial<AuditionSession> & { id: string }) => {
-    if (!user) return;
+  const saveSessionToServer = useCallback(async (data: SessionPatch) => {
+    if (!user) return false;
     try {
       const idToken = await user.getIdToken();
-      await fetch('/api/audition/sessions', {
+      const res = await fetch('/api/audition/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify(data),
+        body: JSON.stringify(stripUndefinedFields(data)),
       });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Session save failed with ${res.status}`);
+      }
+      return true;
     } catch (err) {
       console.error('[Audition] Server session save failed:', err);
+      return false;
     }
   }, [user]);
 
@@ -121,6 +129,11 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
   }, [mode, jobId, searchParams]);
 
   const { entries, addPartial, finalizeLast, reset: resetTranscript } = useTranscript();
+  const latestEntriesRef = useRef(entries);
+
+  useEffect(() => {
+    latestEntriesRef.current = entries;
+  }, [entries]);
 
   const { isPlaying, enqueueChunk, stop: stopPlayback, close: closePlayback, analyserRef } =
     useAudioPlayback();
@@ -247,7 +260,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
         mode: mode === 'freeform' ? 'freeform' : 'job',
         jobTitle: resolvedTitle,
         companyName: resolvedCompany,
-        jobId,
+        ...(jobId ? { jobId } : {}),
         config: { ...config, voiceName: settings.voiceName },
         transcript: [],
         score: 0,
@@ -270,7 +283,6 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     stopPlayback();
 
     const durationSeconds = Math.round((Date.now() - interviewStartTimeRef.current) / 1000);
-    const finalEntries = entries.map((e) => ({ ...e, isFinal: true }));
     const resolvedTitle = mode === 'freeform' ? 'Custom Role' : (job?.title ?? 'Unknown Role');
     const resolvedCompany = mode === 'freeform' ? '' : (job?.companyName ?? 'Unknown Company');
 
@@ -284,6 +296,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     });
 
     disconnect();
+    const finalEntries = latestEntriesRef.current.map((e) => ({ ...e, isFinal: true }));
 
     const sessionResults: AuditionResults = {
       transcript: finalEntries,
@@ -305,7 +318,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
       mode: mode === 'freeform' ? 'freeform' as const : 'job' as const,
       jobTitle: resolvedTitle,
       companyName: resolvedCompany,
-      jobId,
+      ...(jobId ? { jobId } : {}),
       config: { ...config, voiceName: settings.voiceName },
       transcript: finalEntries,
       score: feedback.score,
@@ -321,14 +334,14 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     // Client-side save as secondary path
     if (user) {
       try {
-        await saveSession(completedSession);
+        await saveSession(stripUndefinedFields(completedSession));
       } catch (err) {
         console.error('[Audition] Client session save failed:', err);
       }
     }
 
     setPhase('results');
-  }, [disconnect, audioCapture, stopPlayback, sendClientText, entries, job, mode, config, settings, user, jobId, saveSession, saveSessionToServer]);
+  }, [disconnect, audioCapture, stopPlayback, sendClientText, job, mode, config, settings, user, jobId, saveSession, saveSessionToServer]);
 
   useEffect(() => {
     if (pendingEndRef.current && !isPlaying) {
@@ -344,7 +357,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
         userId: user.uid,
         status: 'cancelled',
         endedAt: new Date().toISOString(),
-        transcript: entries.map((e) => ({ ...e, isFinal: true })),
+        transcript: latestEntriesRef.current.map((e) => ({ ...e, isFinal: true })),
         durationSeconds: Math.round((Date.now() - interviewStartTimeRef.current) / 1000),
       });
     }
@@ -355,7 +368,7 @@ export function AuditionPage({ jobId, mode = 'job' }: AuditionPageProps) {
     sessionIdRef.current = '';
     setSessionError(null);
     setPhase('setup');
-  }, [disconnect, audioCapture, stopPlayback, resetTranscript, user, entries, saveSessionToServer]);
+  }, [disconnect, audioCapture, stopPlayback, resetTranscript, user, saveSessionToServer]);
 
   const handleTryAgain = useCallback(() => {
     closePlayback();

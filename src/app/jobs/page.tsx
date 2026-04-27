@@ -61,6 +61,8 @@ function JobsContent() {
       setWarnings(result.warnings || []);
 
       const nextCategories = Array.from(new Set(result.jobs.map((job) => job.category).filter(Boolean) as string[]));
+      const nextTags = Array.from(new Set(result.jobs.flatMap((job) => job.tags || []).filter(Boolean) as string[]));
+      const nextSources = Array.from(new Set(result.jobs.map((job) => job.source).filter(Boolean) as string[]));
       const nextLocations = Array.from(
         new Map(
           result.jobs
@@ -75,6 +77,8 @@ function JobsContent() {
 
       setCategories(nextCategories);
       setLocations(nextLocations);
+      setTags(nextTags);
+      setSources(nextSources);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load jobs. Please try again.');
       console.error('Error loading jobs:', err);
