@@ -6,7 +6,9 @@ export interface CareerjetJobsResponse {
   page: number;
   pages: number;
   hasMore: boolean;
-  source: 'careerjet';
+  source: string;
+  warnings?: string[];
+  message?: string | null;
 }
 
 function toPortableJob(job: JobData): Partial<JobData> {

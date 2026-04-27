@@ -17,6 +17,7 @@ function JobsContent() {
   const [jobs, setJobs] = useState<JobData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
   const [filters, setFilters] = useState<JobFilters>({});
   const [sortBy, setSortBy] = useState<SortOption>('recent');
   const [hasMore, setHasMore] = useState(false);
@@ -57,6 +58,7 @@ function JobsContent() {
       setJobs((prev) => (append ? [...prev, ...result.jobs] : result.jobs));
       setHasMore(result.hasMore);
       setPage(nextPage);
+      setWarnings(result.warnings || []);
 
       const nextCategories = Array.from(new Set(result.jobs.map((job) => job.category).filter(Boolean) as string[]));
       const nextLocations = Array.from(
@@ -136,6 +138,20 @@ function JobsContent() {
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-center gap-3 text-red-400 mb-6">
             <AlertCircle className="w-5 h-5" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {warnings.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6">
+            <div className="flex items-center gap-3 text-amber-400 mb-2">
+              <AlertCircle className="w-5 h-5" />
+              <span className="font-semibold text-sm uppercase tracking-wider">Provider Warnings</span>
+            </div>
+            <ul className="list-disc list-inside text-sm text-amber-300/80 space-y-1">
+              {warnings.map((warning, i) => (
+                <li key={i}>{warning}</li>
+              ))}
+            </ul>
           </div>
         )}
 
